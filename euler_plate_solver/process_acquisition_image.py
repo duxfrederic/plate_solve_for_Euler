@@ -53,7 +53,8 @@ def verify_object_position(sources_with_wcs, RA_obj, DEC_obj, tolerance=5):
 
 
 def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
-                           aperture_radius=5, annulus_radii=(8, 10), significance=10):
+                           aperture_radius=5, annulus_radii=(8, 10), significance=10,
+                           diagnostic_plot=True):
     """
     Performs aperture photometry at a specified position with background subtraction
     and plots a diagnostic showing the aperture and annulus.
@@ -70,49 +71,43 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
     - bool: Is there significant flux at the position or not?
     """
 
-    # Load the FITS file and WCS
     with fits.open(fits_file_path) as hdulist:
         image_data = hdulist[0].data
         wcs = WCS(hdulist[0].header)
 
-    # Calculate sigma-clipped statistics for background estimation
     _, median, std = sigma_clipped_stats(image_data)
     image_data = image_data - median  # Subtract the median background
 
-    # Transform RA and DEC to pixel coordinates
-    x_obj, y_obj = wcs.all_world2pix([[RA_obj, DEC_obj]], 1)[0]
+    # transform to pixel coordinates
+    x_obj, y_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
 
-    # Define the aperture and annulus for photometry
+    # setup aperture photometry
     aperture = CircularAperture((x_obj, y_obj), r=aperture_radius)
     annulus_aperture = CircularAnnulus((x_obj, y_obj), r_in=annulus_radii[0], r_out=annulus_radii[1])
     
-    # Perform photometry to get the total flux within the aperture and annulus
+    # do the photometry to get the total flux within the aperture and annulus
     phot_table = aperture_photometry(image_data, [aperture, annulus_aperture])
     
-    # Calculate the mean background per pixel within the annulus
+    # get the mean background per pixel, then subtract it times area of aperture
     background_mean = phot_table['aperture_sum_1'] / annulus_aperture.area
-    
-    # Calculate the total background within the aperture
     background_sum = background_mean * aperture.area
-    
-    # Subtract the background from the aperture sum
     flux = phot_table['aperture_sum_0'] - background_sum
-    dflux = std * aperture.area**0.5  # Error in the flux
-
-    # Plotting section: display the image, aperture, and annulus
-    zscale = ZScaleInterval()
-    vmin, vmax = zscale.get_limits(image_data)
-    plt.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
-    aperture.plot(color='blue', lw=1.5, label='Aperture')
-    annulus_aperture.plot(color='red', lw=1.5, linestyle='dashed', label='Background Annulus')
-    plt.legend()
-    plt.xlabel('X Pixel')
-    plt.ylabel('Y Pixel')
-    
-    # Save the plot
-    plot_path = Path(fits_file_path).with_suffix('.png')
-    plt.savefig(plot_path)
-    plt.close()
+    dflux = std * aperture.area**0.5  # error in the flux, since sigma is per pixel.
+    if diagnostic_plot:
+        zscale = ZScaleInterval()
+        vmin, vmax = zscale.get_limits(image_data)
+        plt.figure()
+        plt.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+        aperture.plot(color='blue', lw=1.5, label='Aperture')
+        annulus_aperture.plot(color='red', lw=1.5, linestyle='dashed', label='Background Annulus')
+        plt.legend()
+        plt.xlabel('X Pixel')
+        plt.ylabel('Y Pixel')
+        plt.tight_layout()
+        fp = Path(fits_file_path)
+        plot_path = fp.with_stem(f'{fp.stem}_aperture_diagnostic').with_suffix('.jpg')
+        plt.savefig(plot_path, dpi=300)
+        plt.close()
 
     # Check for significant flux in the aperture
     return (flux / dflux > significance)
@@ -369,7 +364,7 @@ if __name__ == "__main__":
     if __name__ == '__main__':
         dd = Path('../example_data')
         for fits_file_path in dd.glob('*.fits'):
-            if not '5h48' in fits_file_path.name:
+            if not '6h45' in fits_file_path.name:
                 continue
     
             # Assume these functions and variables are defined as per your previous logic

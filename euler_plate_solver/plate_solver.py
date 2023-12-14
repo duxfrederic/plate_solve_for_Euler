@@ -19,6 +19,9 @@ from euler_plate_solver.star_finder import extract_stars, plot_stars
 from euler_plate_solver.exceptions import CouldNotSolveError
 
 
+N_BRIGHTEST_TO_USE = 15
+REDO = False
+
 def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=None):
     """
     Calculate the WCS using the nova.astrometry.net API.
@@ -34,29 +37,29 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
 
     Returns:
     WCS header if successful, None otherwise.
-    
+
     """
     # check, maybe we already solved it
     header = fits.getheader(fits_file_path)
-    if 'PL-SLVED' in header:
+    if 'PL-SLVED' in header and not REDO:
         # we already treated it.
         # the header contains the WCS info.
         return header
-    
+
     # unpack the positions
-    tupledetections = [(star['xcentroid'], star['ycentroid']) for star in sources]
+    tupledetections = [(star['xcentroid'], star['ycentroid']) for star in sources[:N_BRIGHTEST_TO_USE]]
     x, y = list(zip(*tupledetections))
-    
+
     # create a session
-    R = requests.post('http://nova.astrometry.net/api/login', 
+    R = requests.post('http://nova.astrometry.net/api/login',
                       data={'request-json': json.dumps({"apikey": os.environ['astrometry_net_api_key']})})
-    
+
     ast = AstrometryNet()
     ast._session_id = R.json()['session']
-    
+
     # the dimensions of the image...
     nx, ny = header['NAXIS1'], header['NAXIS2']
-    
+
     # can we make the solver find the solution faster?
     # let's give it the pointing of the telescope.
     morekwargs = {}
@@ -67,7 +70,7 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     try:
         # TODO FACTOR OUT PIXEL SCALE ESTIMATE
         # HERE I HARDCODED THE PIXEL SCALE OF CORALIE'S BIGEYE
-        wcs = ast.solve_from_source_list(x, y, nx, ny, 
+        wcs = ast.solve_from_source_list(x, y, nx, ny,
                                          scale_est=0.26,
                                          scale_err=10,
                                          scale_units='arcsecperpix',
@@ -75,7 +78,7 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     except Exception as e:
         # anything ...
         raise CouldNotSolveError(f'Exception when trying to plate solve the image: {e}')
-    
+
     # it can also have actually failed.
     # happens if the selected stars are too faint, or if our sources
     # contain too many artifacts.
@@ -83,7 +86,7 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     # or ...many other reasons.
     if len(wcs) == 0:
         raise CouldNotSolveError('Astrometry.net failed! WCS empty. Try with different stars or a different image?')
-    
+
     # else, we're probably fine. Like, 99.9% confidence from my
     # experience with astrometry.net's plate solver.
     with fits.open(fits_file_path, mode="update") as hdul:
@@ -121,7 +124,7 @@ def plot_stars_with_wcs(fits_file_path, sources):
     ax.set_ylabel('Declination')
 
     ra, dec = wcs.all_pix2world(sources['xcentroid'], sources['ycentroid'], 0)
-    ax.plot(ra, dec, 'o', color='red', label='Detected Sources', mfc='None', 
+    ax.plot(ra, dec, 'o', color='red', label='Detected Sources', mfc='None',
             transform=ax.get_transform('world'))
 
     plt.legend()
@@ -129,51 +132,35 @@ def plot_stars_with_wcs(fits_file_path, sources):
 
 
 
-def extract_stars(fits_file_path):
-    """
-    Extract star positions from an image using DAOStarFinder.
-    We are quite strict here, requiring 40 sigmas detections.
-    The fwhm is tuned to be higher than the average seeing at Euler, ~1.2-1.4 arcsec.
-    This is because the core of bright stars will often be saturated,
-    and we do not want to count them twice.
-
-    Parameters:
-    fits_file_path (str): Path to the FITS file.
-
-    Returns:
-    astropy.table.Table: Table of detected sources.
-    """
-    from astropy.stats import sigma_clipped_stats
-    from photutils.detection import DAOStarFinder
-    image = fits.getdata(fits_file_path).astype(float)
-    mean, median, stddev = sigma_clipped_stats(image)
-    image = image - median
-
-    daofind = DAOStarFinder(fwhm=8.0, threshold=25*stddev)
-    sources = daofind(image)
-    return sources
-
 if __name__ == '__main__':
-    fits_file_path = "../example_data/plate_solve_try3.fits"
-    fits_file_path = "../example_data/10h31m58s_-58d14m42s.fits"
-    fits_file_path = "../example_data/8h44m12-35d28m24.fits"
-    fits_file_path = "../example_data/plate_solve_try2.fits"
-    fits_file_path = "/home/fred/Documents/plate_solve_for_Euler/example_data/11h16m06-30d10m40.fits"
-    fits_file_path = "../example_data/ECAM.2023-12-11T00:42:12.000.fits"
-    fits_file_path = "../example_data/ECAM.2023-12-11T01:14:25.000.fits"    
-    fits_file_path = "../example_data/5h48m17_-15:11:58.fits"
-    fits_file_path = "../example_data/9h02m_-70d56m.fits"
+    # fits_file_path = "../example_data/plate_solve_try3.fits"
+    # fits_file_path = "../example_data/10h31m58s_-58d14m42s.fits"
+    # fits_file_path = "../example_data/8h44m12-35d28m24.fits"
+    # fits_file_path = "../example_data/8h44m12.0_-35:28:24.fits"
+
+    # fits_file_path = "../example_data/plate_solve_try2.fits"
+    # fits_file_path = "/home/fred/Documents/plate_solve_for_Euler/example_data/11h16m06-30d10m40.fits"
+    # fits_file_path = "../example_data/ECAM.2023-12-11T00:42:12.000.fits"
+    # fits_file_path = "../example_data/ECAM.2023-12-11T01:14:25.000.fits"
+    # fits_file_path = "../example_data/5h48m17_-15:11:58.fits"
+    # fits_file_path = "../example_data/9h02m_-70d56m.fits"
     fits_file_path = '../example_data/10h31m58.0_-58:14:42.fits'
-    fits_file_path = '../example_data/6h45m53.0_10:03:48.fits'
-    fits_file_path = '../example_data/8h44m12.0_-35:28:24.fits'
-    fits_file_path = '../example_data/3h07m18.6_-13:45:42.fits'
-    fits_file_path = '../example_data/7h40m32.8_2:05:55.fits'
-    fits_file_path = '../example_data/9h55m26.2_-58:25:47.fits'
-    fits_file_path = '../example_data/9h02m23.3_-70:56:51.fits'
-    fits_file_path = '../example_data/10h31m58.0_-58:14:42_BIS.fits'
+    # fits_file_path = '../example_data/6h45m53.0_10:03:48.fits'
+    # fits_file_path = '../example_data/8h44m12.0_-35:28:24.fits'
+    # fits_file_path = '../example_data/3h07m18.6_-13:45:42.fits'
+    # fits_file_path = '../example_data/7h40m32.8_2:05:55.fits'
+    fits_file_path = '../example_data/07h14m51.5_-29:25:50.fits'
+
+    # fits_file_path = '../example_data/9h55m26.2_-58:25:47.fits'
+    # fits_file_path = '../example_data/9h02m23.3_-70:56:51.fits'
+    # fits_file_path = '../example_data/10h31m58.0_-58:14:42_BIS.fits'
 
     fits_file_path = '../example_data/11h12m10.1_-61:45:18.fits'
-    fits_file_path = '../example_data/9h40m41.9_-66:39:16.fits'
+    # fits_file_path = '../example_data/9h40m41.9_-66:39:16.fits'
+    # fits_file_path = '../example_data/2h54m35.0_-49:28:04.fits'
+    # fits_file_path = '../example_data/5h48m17.8_-15:11:58.fits'
+    # fits_file_path = '../example_data/6h45m53.0_10:03:48.fits'
+    # fits_file_path = '../example_data/8h32m33.2_-23:23:05.fits'
 
     def get_coords(fitspath):
         from astropy.coordinates import SkyCoord
@@ -187,23 +174,61 @@ if __name__ == '__main__':
         except:
             return None
     cc = get_coords(fits_file_path)
-    
+
     if cc is not None:
-        
+
         extra_args = {'ra_approx':cc[0], 'dec_approx': cc[1]}
         print(extra_args)
 
-    #%%
+    import sep
+    from astropy.table import Table
+    from astropy.stats import sigma_clipped_stats
+
+    def extract_stars(fits_file_path):
+        """
+        Extract star positions from an image using SEP (Source Extractor as a Python library).
+        We are quite strict here, requiring a high threshold for detection.
+        The fwhm is tuned to be higher than the average seeing at Euler, ~1.2-1.4 arcsec.
+        This is because the core of bright stars will often be saturated,
+        and we do not want to count them twice.
+
+        Parameters:
+        fits_file_path (str): Path to the FITS file.
+
+        Returns:
+        astropy.table.Table: Table of detected sources.
+        """
+        # image = fits.getdata(fits_file_path).astype(float)
+        # mean, median, stddev = sigma_clipped_stats(image)
+        # image_sub = image - median
+        bkg = sep.Background(image, bw=64, bh=64, fw=3, fh=3)
+
+        image_sub = image - bkg
+        # Extract objects
+        objects = sep.extract(image_sub, thresh=5,  err=bkg.globalrms,
+                              minarea=9)
+
+        # Create a table to hold the results
+        sources = Table()
+        sources['xcentroid'] = objects['x']
+        sources['ycentroid'] = objects['y']
+        sources['flux'] = objects['flux']
+
+        # Sorting the sources by flux to have the brightest first
+        sources.sort('flux', reverse=True)
+
+        return sources
+
     sources = extract_stars(fits_file_path)
+    sources = sources[sources['flux']>2]
     image = fits.getdata(fits_file_path)
     from astropy.stats import sigma_clipped_stats
     _, mm, _ = sigma_clipped_stats(image)
     image = image - mm
-    plot_stars(sources, image)
-        #%%
+    plot_stars(sources, image)        #%%
     #import matplotlib.pyplot as plt
     #plt.show(block=True)
     # #%%
-    wcs = plate_solve_with_API(fits_file_path,  sources, **extra_args)
-    print((wcs['CD1_1']**2 + wcs['CD1_2']**2)**0.5 * 3600)
-    plot_stars_with_wcs(fits_file_path, sources)
+    # wcs = plate_solve_with_API(fits_file_path,  sources, **extra_args)
+    # print((wcs['CD1_1']**2 + wcs['CD1_2']**2)**0.5 * 3600)
+    # plot_stars_with_wcs(fits_file_path, sources)
