@@ -131,7 +131,7 @@ def find_brightest_source(sources):
 
 
 
-def is_significantly_brighter(brightest_source, sources, brightness_factor=2):
+def is_significantly_brighter(brightest_source, sources, brightness_factor=5):
     """
     Is the brightest source is significantly brighter than others?
 
@@ -186,7 +186,27 @@ def confirm_with_peak_detection(fits_file_path, source, window_size=5, peak_tole
     return distance2 < peak_tolerance**2
 
 
+def find_star_that_clearly_pops_out(sources, brightness_factor=5):
+    """
+    given a list of stars, selects the brightest ones if all the others
+    are much dimmer.
 
+    Args:
+    - sources: astropy Table with at least columns xcentroid, ycentroid, flux
+
+    Returns:
+    - Tuple (x, y): Pixel coordinates of the peak if confirmed, else raises
+    
+    Raises:
+        raises TooFewStarsForPlateSolving indicates that we really can't be sure
+    """
+    brightest_source = find_brightest_source(sources)
+    if is_significantly_brighter(brightest_source, sources, brightness_factor):
+        return (brightest_source['xcentroid'], brightest_source['ycentroid'])
+    else:
+        # if no, then it's really ambigous, can't say anything with
+        # any kind of confidence
+        raise TooFewStarsForPlateSolving
 
 def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
     """
@@ -246,8 +266,9 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                     else:
                         raise PlateSolvedButNoFluxAtObject
             except CouldNotSolveError:
-                # todo replace with beter exception that integrates with the flask workflo
-                print("This field has many stars, but we could not plate solve it. It is not safe to continue automatically.")
+                # Well, here we can still do the old school select the obviously brighter star.
+                find_star_that_clearly_pops_out(sources)
+                # we'll raise a TooFewStarsForPlateSolving if it's not the case.
                 raise
 
         elif num_sources > 1:
@@ -259,15 +280,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
             # There is also a strong probability that our target
             # will be the brightest in the field.
             # So, check if one source is significantly brighter
-            brightest_source = find_brightest_source(sources)
-            if is_significantly_brighter(brightest_source, sources):
-                print('one source much brighter, selecting it')
-                return (brightest_source['xcentroid'], brightest_source['ycentroid'])
-            else:
-                # if no, then it's really ambigous, can't say anything with
-                # any kind of confidence
-                print('stars of similar brightness and no plate solving')
-                raise TooFewStarsForPlateSolving
+            return find_star_that_clearly_pops_out(sources)
 
         elif num_sources == 1:
             # that's probably our target if we're not too unlucky with the pointing.

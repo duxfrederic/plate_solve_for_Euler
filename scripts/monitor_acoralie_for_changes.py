@@ -24,8 +24,6 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 from astropy.visualization import ZScaleInterval
 from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord
-from astropy import units as u
 
 
 from euler_plate_solver.telescope_reader import get_skycoord_from_ETCS
