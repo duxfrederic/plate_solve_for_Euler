@@ -20,7 +20,9 @@ from astropy.visualization import ZScaleInterval
 
 from euler_plate_solver.star_finder import extract_stars
 from euler_plate_solver.plate_solver import plate_solve_with_API
-from euler_plate_solver.exceptions import CouldNotSolveError
+from euler_plate_solver.exceptions import (CouldNotSolveError, PlateSolvedButNoFluxAtObject,
+                                           TooFewStarsForPlateSolving, EmptyFieldError,
+                                           SuspiciousUniqueDetectionError)
 
 
 
@@ -199,7 +201,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
     Returns:
     - Tuple (x, y): Pixel coordinates of the object in the image.
-    - Raises CouldNotSolveError if the object cannot be located or other conditions are not met.
+    - Raises different exceptions if the object cannot be located or other conditions are not met.
     """
 
     try:
@@ -214,7 +216,9 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
         if num_sources > 6:
             # Try plate solving
             try:
-                wcs_header = plate_solve_with_API(fits_file_path, sources)
+                wcs_header = plate_solve_with_API(fits_file_path, sources,
+                                                  ra_approx=RA_obj, 
+                                                  dec_approx=DEC_obj)
                 wcs = WCS(wcs_header)
         
                 # Convert pixel coordinates to RA and DEC and add them to the sources table
@@ -240,9 +244,10 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                         object_position = wcs.world_to_pixel_values(RA_obj, DEC_obj)
                         return object_position
                     else:
-                        mm = "Plate solve succeeded, but no flux where our object should be!"
-                        raise CouldNotSolveError(mm)
+                        raise PlateSolvedButNoFluxAtObject
             except CouldNotSolveError:
+                # todo replace with beter exception that integrates with the flask workflo
+                print("This field has many stars, but we could not plate solve it. It is not safe to continue automatically.")
                 raise
 
         elif num_sources > 1:
@@ -258,7 +263,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
             else:
                 # if no, then it's really ambigous, can't say anything with
                 # any kind of confidence
-                raise CouldNotSolveError("No dominant bright source found")
+                raise TooFewStarsForPlateSolving
 
         elif num_sources == 1:
             # that's probably our target if we're not too unlucky with the pointing.
@@ -268,10 +273,10 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                 uniquesource = sources[0]
                 return (uniquesource['xcentroid'], uniquesource['ycentroid'])
             else:
-                raise CouldNotSolveError("Unique source in the field, but it's too sus.")
+                raise SuspiciousUniqueDetectionError
 
         else:
-            raise CouldNotSolveError("Seemingly empty field")
+            raise EmptyFieldError
 
     except Exception as e:
         # place holder for future issues ...
@@ -280,10 +285,6 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    from astropy.io import fits
-    from astropy.visualization import ZScaleInterval
-    from astropy.wcs import WCS
     from pathlib import Path
     
     def get_coords(fitspath):
@@ -345,7 +346,8 @@ if __name__ == "__main__":
         ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', facecolor='none', label='Extracted Sources')
     
         # Plot the estimated position of the source
-        ax.plot(object_position[0], object_position[1], 'x', color='blue', markersize=10, label='Estimated Position')
+        if object_position is not None:
+            ax.plot(object_position[0], object_position[1], 'x', color='blue', markersize=10, label='Estimated Position')
     
         # Plot the true position of the source, if available
         # if true_position:

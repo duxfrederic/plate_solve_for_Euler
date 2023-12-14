@@ -180,44 +180,6 @@ if __name__ == '__main__':
         extra_args = {'ra_approx':cc[0], 'dec_approx': cc[1]}
         print(extra_args)
 
-    import sep
-    from astropy.table import Table
-    from astropy.stats import sigma_clipped_stats
-
-    def extract_stars(fits_file_path):
-        """
-        Extract star positions from an image using SEP (Source Extractor as a Python library).
-        We are quite strict here, requiring a high threshold for detection.
-        The fwhm is tuned to be higher than the average seeing at Euler, ~1.2-1.4 arcsec.
-        This is because the core of bright stars will often be saturated,
-        and we do not want to count them twice.
-
-        Parameters:
-        fits_file_path (str): Path to the FITS file.
-
-        Returns:
-        astropy.table.Table: Table of detected sources.
-        """
-        # image = fits.getdata(fits_file_path).astype(float)
-        # mean, median, stddev = sigma_clipped_stats(image)
-        # image_sub = image - median
-        bkg = sep.Background(image, bw=64, bh=64, fw=3, fh=3)
-
-        image_sub = image - bkg
-        # Extract objects
-        objects = sep.extract(image_sub, thresh=5,  err=bkg.globalrms,
-                              minarea=9)
-
-        # Create a table to hold the results
-        sources = Table()
-        sources['xcentroid'] = objects['x']
-        sources['ycentroid'] = objects['y']
-        sources['flux'] = objects['flux']
-
-        # Sorting the sources by flux to have the brightest first
-        sources.sort('flux', reverse=True)
-
-        return sources
 
     sources = extract_stars(fits_file_path)
     sources = sources[sources['flux']>2]
