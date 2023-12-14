@@ -9,13 +9,15 @@ glscriptpath = Path('/opt/t4/beta/scripts/')
 
 
 def get_skycoord_from_ETCS():
-    position_script = str(glscriptpath / 'ETCS_axis_positions')
+    command_name =  'ETCS_axis_positions'
+    position_script = str(glscriptpath / command_name)
     try:
         result = subprocess.run([position_script], capture_output=True, text=True, check=True)
         output = result.stdout
 
         # parse the string output
-        parts = output.split('#')
+        separator = output[0]
+        parts = output.split(separator)
         alpha = float(parts[parts.index('alpha') + 1])
         delta = float(parts[parts.index('delta') + 1])
 
@@ -24,7 +26,10 @@ def get_skycoord_from_ETCS():
         return sky_coord
 
     except subprocess.CalledProcessError as e:
-        print(f"An error occurred: {e}")
-    except ValueError as e:
-        print(f"Could not parse the output: {e}")
+        print(f"An error occurred in the subprocess when executing {command_name}: {e}")
+    except ValueError as e: # probably from parts.index, alpha and delta not in string
+        print(f"ValueError: {e}, when parsing the output of {command_name}, it wasn't what we expected:", output)
+    except Exception as e:
+        print(f"Undefined error when running {command_name}: {e}")
+        raise # the above print just for more info, but can't let it go through.
 

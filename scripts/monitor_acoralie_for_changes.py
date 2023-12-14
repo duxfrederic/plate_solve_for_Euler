@@ -21,15 +21,74 @@ WE WANT TO SLEW TO.
 import time
 from pathlib import Path
 from astropy.io import fits
+import matplotlib.pyplot as plt
+from astropy.visualization import ZScaleInterval
+from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord
+from astropy import units as u
+
 
 from euler_plate_solver.telescope_reader import get_skycoord_from_ETCS
 from euler_plate_solver.star_finder import extract_stars
-from euler_plate_solver.process_acquisition_image import process_acquisition_image, diagnostic_plot
+from euler_plate_solver.process_acquisition_image import process_acquisition_image
 from euler_plate_solver.exceptions import PlateSolvedButNoFluxAtObject
 
 
 WORKDIR = "/home/remote/Desktop/helper_astrometry_pointing"
 
+
+
+def diagnostic_plot(fits_file_path, sources, object_position):
+    """
+    Makes a diagnostic plot of our target localization.
+
+    Args:
+    - fits_file_path (str): Path to the acquisition FITS file.
+    - sources (Table): Astropy Table of extracted sources.
+    - object_position (tuple): Estimated position of the object.
+    """
+
+    # Load the FITS file
+    with fits.open(fits_file_path) as hdulist:
+        image_data = hdulist[0].data
+
+    # Set up the plot
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    zscale = ZScaleInterval()
+    vmin, vmax = zscale.get_limits(image_data)
+
+    # If plate solving worked, show the coordinates
+    try:
+        wcs = WCS(hdulist[0].header)
+        ax = plt.subplot(projection=wcs)
+        ax.coords.grid(True, color='white', ls='solid')
+        ax.coords[0].set_axislabel('Right Ascension')
+        ax.coords[1].set_axislabel('Declination')
+        # ax.coords[0].set_ticks(number=20)
+        # ax.coords[1].set_ticks(number=20)
+        
+    except:
+        pass
+    
+    # Plot the image
+    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+
+    # Plot the extracted sources
+    ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', 
+               facecolor='none', label='Extracted Sources')
+
+    # Plot the estimated position of the source
+    if object_position is not None:
+        ax.plot(object_position[0], object_position[1], 'x', color='blue', 
+                markersize=10, label='Estimated Position')
+
+
+    ax.legend()
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = Path(fits_file_path).with_suffix('.jpg')
+    plt.savefig(plot_path)
 
 def get_date_obs(file_path):
     with fits.open(file_path) as hdul:

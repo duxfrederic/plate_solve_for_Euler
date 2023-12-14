@@ -126,13 +126,12 @@ def find_brightest_source(sources):
     - Row: The row of the brightest source in the table.
     """
 
-    # Assuming 'flux' column exists and represents the brightness
     brightest_index = np.argmax(sources['flux'])
     return sources[brightest_index]
 
 
 
-def is_significantly_brighter(brightest_source, sources, brightness_factor=5):
+def is_significantly_brighter(brightest_source, sources, brightness_factor=2):
     """
     Is the brightest source is significantly brighter than others?
 
@@ -329,11 +328,13 @@ def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
     ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
 
     # Plot the extracted sources
-    ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', facecolor='none', label='Extracted Sources')
+    ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', 
+               facecolor='none', label='Extracted Sources')
 
     # Plot the estimated position of the source
     if object_position is not None:
-        ax.plot(object_position[0], object_position[1], 'x', color='blue', markersize=10, label='Estimated Position')
+        ax.plot(object_position[0], object_position[1], 'x', color='blue', 
+                markersize=10, label='Estimated Position')
 
 
     ax.legend()
