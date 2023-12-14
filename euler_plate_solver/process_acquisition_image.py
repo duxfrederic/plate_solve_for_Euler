@@ -5,7 +5,7 @@ Created on Mon Dec 11 05:21:01 2023
 
 @author: fred
 """
-
+import Path
 import numpy as np
 from scipy.ndimage import median_filter
 from astropy.io import fits
