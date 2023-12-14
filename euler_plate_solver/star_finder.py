@@ -4,9 +4,10 @@ from astropy.table import Table
 from astropy.visualization import ZScaleInterval
 import matplotlib.pyplot as plt
 import sep
+import pathlib
 
     
-def extract_stars(fits_file_path):
+def extract_stars(fits_file_path_or_2darray):
     """
     Extract star positions from an image using SEP (Source Extractor as a Python library).
     
@@ -17,7 +18,11 @@ def extract_stars(fits_file_path):
     astropy.table.Table: Table of detected sources.
     numpy 2D array: background subtracted image
     """
-    image = fits.getdata(fits_file_path).astype(float)
+    if type(fits_file_path_or_2darray) is str or type(fits_file_path_or_2darray) is pathlib.PosixPath:
+        image = fits.getdata(fits_file_path_or_2darray).astype(float)
+    else:
+        image = fits_file_path_or_2darray
+    
     bkg = sep.Background(image, bw=64, bh=64, fw=3, fh=3)
     image_filtered = median_filter(image, size=2)
 
