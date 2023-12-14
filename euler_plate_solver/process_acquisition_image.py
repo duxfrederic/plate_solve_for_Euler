@@ -214,6 +214,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
         if num_sources > 6:
             # Try plate solving
+            print('try plate solving')
             try:
                 wcs_header = plate_solve_with_API(fits_file_path, sources,
                                                   ra_approx=RA_obj, 
@@ -250,6 +251,8 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                 raise
 
         elif num_sources > 1:
+            print('found ', num_sources)
+            print('no plate solving, checking sources')
             # well not great, only 2-6 sources ...
             # hard to plate solve, but we can probably assume the pointing
             # was good enough such that our target is in the field.
@@ -258,10 +261,12 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
             # So, check if one source is significantly brighter
             brightest_source = find_brightest_source(sources)
             if is_significantly_brighter(brightest_source, sources):
+                print('one source much brighter, selecting it')
                 return (brightest_source['xcentroid'], brightest_source['ycentroid'])
             else:
                 # if no, then it's really ambigous, can't say anything with
                 # any kind of confidence
+                print('stars of similar brightness and no plate solving')
                 raise TooFewStarsForPlateSolving
 
         elif num_sources == 1:
