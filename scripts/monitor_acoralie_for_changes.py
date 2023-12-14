@@ -120,13 +120,11 @@ def main():
                 
                 date_obs = get_date_obs(source_file)
                 destination_file = destination_folder / f"{date_obs}.fits"
-                destination_file.write_bytes(source_file.read_bytes())
+                if not destination_file.exists():
+                    destination_file.write_bytes(source_file.read_bytes())
                 
                 # ok, we wrote out file ... we can now process it.
-                # here we do redundant things (e.g. extracting sources 2 times, once
-                # in extract_stars below and another in process_acquisition_image)
-                # it's just for test
-                sources, imageskysub = extract_stars(destination_file)
+
                 
                 # WARNING THIS IS NOT HOW THE FUNCTION BELOW IS TO BE CALLED ULTIMATELY
                 # this function expects the true coordinates of the object, so it can
@@ -147,7 +145,10 @@ def main():
                     # I don't know where the best place would be for logging.
                 # true_position = None  # You need to determine this based on WCS solving
                 
-                
+                # here we do redundant things (e.g. extracting sources 2 times, once
+                # in extract_stars below and another in process_acquisition_image)
+                # it's just for test
+                sources, imageskysub = extract_stars(destination_file)
                 diagnostic_plot(destination_file, sources, object_position)
 
         time.sleep(5)
