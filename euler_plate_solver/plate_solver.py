@@ -74,6 +74,7 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
                                          scale_est=0.26,
                                          scale_err=10,
                                          scale_units='arcsecperpix',
+                                         publicly_visible='n',
                                          **morekwargs)
     except Exception as e:
         # anything ...
