@@ -181,7 +181,7 @@ if __name__ == '__main__':
         print(extra_args)
 
 
-    sources = extract_stars(fits_file_path)
+    sources, imageskysub = extract_stars(fits_file_path)
     sources = sources[sources['flux']>2]
     image = fits.getdata(fits_file_path)
     from astropy.stats import sigma_clipped_stats

@@ -206,7 +206,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
     try:
         # 1: Extract stars from the image
-        sources = extract_stars(fits_file_path)
+        sources, skysubimage = extract_stars(fits_file_path)
         sources = [] if sources is None else sources
         
         
@@ -284,6 +284,70 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
 
 
+
+
+def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
+    """
+    Makes a diagnostic plot of our target localization.
+
+    Args:
+    - fits_file_path (str): Path to the acquisition FITS file.
+    - sources (Table): Astropy Table of extracted sources.
+    - object_position (tuple): Estimated position of the object.
+    """
+
+    # Load the FITS file
+    with fits.open(fits_file_path) as hdulist:
+        image_data = hdulist[0].data
+
+    # Set up the plot
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    zscale = ZScaleInterval()
+    vmin, vmax = zscale.get_limits(image_data)
+
+    # If plate solving worked, show the coordinates
+    try:
+        wcs = WCS(hdulist[0].header)
+        ax = plt.subplot(projection=wcs)
+        ax.coords.grid(True, color='white', ls='solid')
+        ax.coords[0].set_axislabel('Right Ascension')
+        ax.coords[1].set_axislabel('Declination')
+        # ax.coords[0].set_ticks(number=20)
+        # ax.coords[1].set_ticks(number=20)
+        
+        ax.plot([RA_obj], [DEC_obj], 'o', mfc='None', label='Catalogue coordinates', ms=15,
+                color='green', transform=ax.get_transform('world'))
+    except:
+        pass
+    
+    coo = SkyCoord(RA_obj, DEC_obj, unit=u.degree)
+    rastr = coo.ra.to_string(unit=u.hourangle, sep=":", precision=2, pad=True)
+    decstr = coo.dec.to_string(sep=":", precision=2, alwayssign=True, pad=True)
+
+    ax.set_title(rastr + ' ' + decstr)
+    # Plot the image
+    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+
+    # Plot the extracted sources
+    ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', facecolor='none', label='Extracted Sources')
+
+    # Plot the estimated position of the source
+    if object_position is not None:
+        ax.plot(object_position[0], object_position[1], 'x', color='blue', markersize=10, label='Estimated Position')
+
+
+    ax.legend()
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = Path(fits_file_path).with_suffix('.jpg')
+    plt.savefig(plot_path)
+
+
+
+
+
+
 if __name__ == "__main__":
     from pathlib import Path
     
@@ -299,80 +363,19 @@ if __name__ == "__main__":
         except:
             return None
         
-    def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
-        """
-        Makes a diagnostic plot of our target localization.
-    
-        Args:
-        - fits_file_path (str): Path to the acquisition FITS file.
-        - sources (Table): Astropy Table of extracted sources.
-        - object_position (tuple): Estimated position of the object.
-        - true_position (tuple, optional): True position of the object if WCS succeeded.
-        """
-    
-        # Load the FITS file
-        with fits.open(fits_file_path) as hdulist:
-            image_data = hdulist[0].data
-    
-        # Set up the plot
-        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-        zscale = ZScaleInterval()
-        vmin, vmax = zscale.get_limits(image_data)
-    
-        # If plate solving worked, show the coordinates
-        try:
-            wcs = WCS(hdulist[0].header)
-            ax = plt.subplot(projection=wcs)
-            ax.coords.grid(True, color='white', ls='solid')
-            ax.coords[0].set_axislabel('Right Ascension')
-            ax.coords[1].set_axislabel('Declination')
-            # ax.coords[0].set_ticks(number=20)
-            # ax.coords[1].set_ticks(number=20)
-            
-            ax.plot([RA_obj], [DEC_obj], 'o', mfc='None', label='Catalogue coordinates', ms=15,
-                    color='green', transform=ax.get_transform('world'))
-        except:
-            pass
-        
-        coo = SkyCoord(RA_obj, DEC_obj, unit=u.degree)
-        rastr = coo.ra.to_string(unit=u.hourangle, sep=":", precision=2, pad=True)
-        decstr = coo.dec.to_string(sep=":", precision=2, alwayssign=True, pad=True)
+    dd = Path('../tests/example_data')
+    for fits_file_path in dd.glob('*.fits'):
+        if not '6h45' in fits_file_path.name:
+            continue
 
-        ax.set_title(rastr + ' ' + decstr)
-        # Plot the image
-        ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
-    
-        # Plot the extracted sources
-        ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', facecolor='none', label='Extracted Sources')
-    
-        # Plot the estimated position of the source
-        if object_position is not None:
-            ax.plot(object_position[0], object_position[1], 'x', color='blue', markersize=10, label='Estimated Position')
-    
-        # Plot the true position of the source, if available
-        # if true_position:
-            # ax.plot(true_position[0], true_position[1], marker='o', color='green', markersize=10, label='True Position')
-    
-        # Add a legend
-        ax.legend()
-        plt.tight_layout()
-    
-        # Save the plot
-        plot_path = Path(fits_file_path).with_suffix('.jpg')
-        plt.savefig(plot_path)
-        # plt.close()
-    
-    # Example usage
-    if __name__ == '__main__':
-        dd = Path('../example_data')
-        for fits_file_path in dd.glob('*.fits'):
-            if not '6h45' in fits_file_path.name:
-                continue
-    
-            # Assume these functions and variables are defined as per your previous logic
-            sources = extract_stars(fits_file_path)
-            RA_obj, DEC_obj = get_coords(fits_file_path)
+        # Assume these functions and variables are defined as per your previous logic
+        sources, imageskysub = extract_stars(fits_file_path)
+        RA_obj, DEC_obj = get_coords(fits_file_path)
+        object_position = None
+        try:
             object_position = process_acquisition_image(fits_file_path, RA_obj, DEC_obj)
-            # true_position = None  # You need to determine this based on WCS solving
+        except Exception as e:
+            print(e)
+        # true_position = None  # You need to determine this based on WCS solving
         
-            diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj)
+        diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj)

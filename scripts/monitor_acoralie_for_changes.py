@@ -67,7 +67,7 @@ def main():
                 # here we do redundant things (e.g. extracting sources 2 times, once
                 # in extract_stars below and another in process_acquisition_image)
                 # it's just for test
-                sources = extract_stars(destination_file)
+                sources, imageskysub = extract_stars(destination_file)
                 
                 # WARNING THIS IS NOT HOW THE FUNCTION BELOW IS TO BE CALLED ULTIMATELY
                 # this function expects the true coordinates of the object, so it can
