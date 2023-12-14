@@ -148,7 +148,7 @@ def main():
                 # true_position = None  # You need to determine this based on WCS solving
                 
                 
-                diagnostic_plot(destination_file, sources, object_position, coord.ra.deg, coord.dec.deg)
+                diagnostic_plot(destination_file, sources, object_position)
 
         time.sleep(5)
 
