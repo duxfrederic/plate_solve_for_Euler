@@ -22,8 +22,8 @@ def extract_stars(fits_file_path):
     image_filtered = median_filter(image, size=2)
 
     image_sub = image_filtered - bkg
-    objects = sep.extract(image_sub, thresh=3,  err=bkg.globalrms,
-                          minarea=9)
+    objects = sep.extract(image_sub, thresh=4,  err=bkg.globalrms,
+                          minarea=10)
 
     sources = Table()
     for col in objects.dtype.names:
