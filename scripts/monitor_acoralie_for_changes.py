@@ -98,8 +98,16 @@ def get_date_obs(file_path):
     return date_obs.replace(':', '-').replace(' ', 'T')  
 
 def main():
-    source_file = Path("/raw/COR-GUIDING/acoralie.fits")
-    destination_folder = Path(WORKDIR)
+    import socket
+    hostname = socket.gethostname()
+    if hostname == 'lenovolaptop':
+        source_file = Path("/tmp/acoralie.fits")
+        destination_folder = Path('/tmp/')
+
+    else:
+        source_file = Path("/raw/COR-GUIDING/acoralie.fits")
+        destination_folder = Path(WORKDIR)
+        
     last_modified = None
 
     while True:
