@@ -25,6 +25,10 @@ import matplotlib.pyplot as plt
 from astropy.visualization import ZScaleInterval
 from astropy.wcs import WCS
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 from euler_plate_solver.telescope_reader import (get_telescope_position_skycoord_from_ETCS,
                                                  get_current_catalogue_skycoord_from_TCS)
@@ -146,8 +150,8 @@ def main():
                 try:
                     object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
                 except Exception as e:
-                    print(e)
-                    raise
+                    logger.error(e)
+                    continue
                     # something else,just a print for debug for now, 
                     # I don't know where the best place would be for logging.
                 # true_position = None  # You need to determine this based on WCS solving
