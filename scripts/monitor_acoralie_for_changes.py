@@ -129,11 +129,13 @@ def process_file_changes(source_file, destination_folder, last_modified):
         destination_file = destination_folder / f"{date_obs}.fits"
         if not destination_file.exists():
             with fits.open(source_file, mode='readonly') as hdul_source:
+                logger.info(f'writing file at {destination_file}')
                 hdul_source.writeto(destination_file)
         
         # ok, we wrote out file ... we can now process it.
         # this process function expects the true coordinates of the object, so it can
         # provide its pixel position (to be used to calculate the offset)
+        logger.info(f'running process_ac image on {destination_file} with {target.ra.deg}, {target.dec.deg}')
         object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
         logger.info(f'process_acquisition_image determined target position at {object_position}')
         
