@@ -284,7 +284,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                     logger.info('  object should be in the range of the image.')
                     # ok, if it is in the footprint...
                     # we check the aperture photometry at that location!
-                    thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj)
+                    thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj, diagnostic_plot=False)
                     if thereisflux:
                         logger.info('  the source extractor probably missed it, there is flux there.')
                         # yay, we plate solved, and there is flux at the
