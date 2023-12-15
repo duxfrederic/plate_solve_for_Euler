@@ -156,7 +156,7 @@ if __name__ == '__main__':
     # fits_file_path = '../example_data/9h02m23.3_-70:56:51.fits'
     # fits_file_path = '../example_data/10h31m58.0_-58:14:42_BIS.fits'
 
-    fits_file_path = '../example_data/11h12m10.1_-61:45:18.fits'
+    fits_file_path = '../tests/example_data/11h12m10.1_-61:45:18.fits'
     # fits_file_path = '../example_data/9h40m41.9_-66:39:16.fits'
     # fits_file_path = '../example_data/2h54m35.0_-49:28:04.fits'
     # fits_file_path = '../example_data/5h48m17.8_-15:11:58.fits'
@@ -188,10 +188,10 @@ if __name__ == '__main__':
     from astropy.stats import sigma_clipped_stats
     _, mm, _ = sigma_clipped_stats(image)
     image = image - mm
-    plot_stars(sources, image)        #%%
+    # plot_stars(sources, image)        #%%
     #import matplotlib.pyplot as plt
     #plt.show(block=True)
     # #%%
-    # wcs = plate_solve_with_API(fits_file_path,  sources, **extra_args)
-    # print((wcs['CD1_1']**2 + wcs['CD1_2']**2)**0.5 * 3600)
-    # plot_stars_with_wcs(fits_file_path, sources)
+    wcs = plate_solve_with_API(fits_file_path,  sources, **extra_args)
+    print((wcs['CD1_1']**2 + wcs['CD1_2']**2)**0.5 * 3600)
+    plot_stars_with_wcs(fits_file_path, sources)

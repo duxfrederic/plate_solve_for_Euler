@@ -23,3 +23,6 @@ class SuspiciousUniqueDetectionError(Exception):
 
 class EmptyFieldError(Exception):
     "We could not detect stars in the field. Automatic acquisition not possible."
+    
+class NotWithinImageBoundError(Exception):
+    "Thec catalogue coordinates do not fall in the footprint of the acquisition image."

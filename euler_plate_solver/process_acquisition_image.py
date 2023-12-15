@@ -22,7 +22,8 @@ from euler_plate_solver.star_finder import extract_stars
 from euler_plate_solver.plate_solver import plate_solve_with_API
 from euler_plate_solver.exceptions import (CouldNotSolveError, PlateSolvedButNoFluxAtObject,
                                            TooFewStarsForPlateSolving, EmptyFieldError,
-                                           SuspiciousUniqueDetectionError)
+                                           SuspiciousUniqueDetectionError,
+                                           NotWithinImageBoundError)
 
 
 
@@ -240,7 +241,8 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                                                   ra_approx=RA_obj, 
                                                   dec_approx=DEC_obj)
                 wcs = WCS(wcs_header)
-        
+                # we might need this as well
+                image_header = fits.getheader(fits_file_path)
                 # Convert pixel coordinates to RA and DEC and add them to the sources table
                 sources['RA'] = None
                 sources['DEC'] = None
@@ -250,11 +252,19 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                     source['DEC'] = dec                
                 # check that we have a detection near our object
                 object_position = verify_object_position(sources, RA_obj, DEC_obj)
-                if object_position:
+                if object_position is not None:
                     # if yes, then surely we can't be too wrong!
                     return object_position
                 else:
-                    # then ...our source extractor might have missed it.
+                    # then ...our source extractor might have missed it, or it falls outside of the image.
+                    # check that it's inside the image:
+                    px_obj, py_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
+                    nx, ny = image_header.get('NAXIS1'), image_header.get('NAXIS2')
+                    is_within_bounds = (0 <= px_obj < nx) and (0 <= py_obj < ny)
+                    if not is_within_bounds:
+                        raise NotWithinImageBoundError
+
+                    # ok, if it is in the footprint...
                     # we check the aperture photometry at that location!
                     thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj)
                     if thereisflux:
@@ -368,7 +378,6 @@ def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
 
 
 if __name__ == "__main__":
-    from pathlib import Path
     
     def get_coords(fitspath):
         from astropy.coordinates import SkyCoord
