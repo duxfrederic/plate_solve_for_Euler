@@ -69,35 +69,35 @@ def plot_stars(sources, image, savepath=None):
         plt.savefig(savepath)
     
     
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
 
     
-    def plot_stars_on_image(image_file, catalog_data):
-        # Load the image data
-        with fits.open(image_file) as hdul:
-            image_data = hdul[0].data
+#     def plot_stars_on_image(image_file, catalog_data):
+#         # Load the image data
+#         with fits.open(image_file) as hdul:
+#             image_data = hdul[0].data
     
-        # Prepare the plot
-        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+#         # Prepare the plot
+#         fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     
-        # Adjust the image contrast using ZScaleInterval
-        interval = ZScaleInterval(contrast=0.1)
-        vmin, vmax = interval.get_limits(image_data)
-        ax.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
+#         # Adjust the image contrast using ZScaleInterval
+#         interval = ZScaleInterval(contrast=0.1)
+#         vmin, vmax = interval.get_limits(image_data)
+#         ax.imshow(image_data, cmap='gray', origin='lower', vmin=vmin, vmax=vmax)
     
-        # Plot the stars and annotate with flags
-        for star in catalog_data:
-            x, y, flag = star['X_IMAGE'], star['Y_IMAGE'], star['FLAGS']
-            flux = star['FLUX_APER'][0]/100
-            if flag > 3:
-                continue
-            ax.plot(x, y, 'ro', mfc='None', ms=int(flux**0.5))  # red circle for each star
+#         # Plot the stars and annotate with flags
+#         for star in catalog_data:
+#             x, y, flag = star['X_IMAGE'], star['Y_IMAGE'], star['FLAGS']
+#             flux = star['FLUX_APER'][0]/100
+#             if flag > 3:
+#                 continue
+#             ax.plot(x, y, 'ro', mfc='None', ms=int(flux**0.5))  # red circle for each star
     
-        ax.set_xlabel('X Pixel')
-        ax.set_ylabel('Y Pixel')
-        plt.title('Stars with Flag Numbers')
-        plt.show()
+#         ax.set_xlabel('X Pixel')
+#         ax.set_ylabel('Y Pixel')
+#         plt.title('Stars with Flag Numbers')
+#         plt.show()
     
-    plot_stars_on_image(im, catalog_data)
+#     plot_stars_on_image(im, catalog_data)
     

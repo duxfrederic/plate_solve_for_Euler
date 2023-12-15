@@ -145,24 +145,20 @@ def main():
                 # ok, we wrote out file ... we can now process it.
                 # this process function expects the true coordinates of the object, so it can
                 # provide its pixel position (to be used to calculate the offset)
-                object_position = None
-                try:
-                    object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
-                    logger.info(f'process_acquisition_image determined target position at {object_position}')
-                except Exception as e:
-                    logger.error(e)
-                    raise
-                    # something else,just a print for debug for now, 
+                object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
+                logger.info(f'process_acquisition_image determined target position at {object_position}')
                 
                 # here we do redundant things (e.g. extracting sources 2 times, once
                 # in extract_stars below and another in process_acquisition_image)
                 # it's just for test
                 sources, imageskysub = extract_stars(destination_file)
                 logger.info(f'about to call diagnostic_plot with args: destination_file: {destination_file}, {len(sources)} sources, object_position: {object_position}, target: {target}')
-                diagnostic_plot(destination_file, sources, object_position,
+                diagnostic_plot(destination_file, 
+                                sources, 
+                                object_position,
                                 target)
 
-        time.sleep(5)
+        time.sleep(2)
 
 
 if __name__ == "__main__":
