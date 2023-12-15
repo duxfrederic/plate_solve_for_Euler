@@ -239,100 +239,96 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
     """
     logger.info(f'process_acquisition_image on {fits_file_path} at  {RA_obj}, {DEC_obj}')
 
-    try:
-        # 1: Extract stars from the image
-        sources, skysubimage = extract_stars(fits_file_path)
-        sources = [] if sources is None else sources
-        
-        
-        # 2: depends on the number of detections
-        num_sources = len(sources)
-        
-        if num_sources > 6:
-            # Try plate solving
-            logger.info('try plate solving')
-            try:
-                wcs_header = plate_solve_with_API(fits_file_path, sources,
-                                                  ra_approx=RA_obj, 
-                                                  dec_approx=DEC_obj)
-                wcs = WCS(wcs_header)
-                # we might need this as well
-                image_header = fits.getheader(fits_file_path)
-                # Convert pixel coordinates to RA and DEC and add them to the sources table
-                sources['RA'] = None
-                sources['DEC'] = None
-                for source in sources:
-                    ra, dec = wcs.all_pix2world(source['xcentroid'], source['ycentroid'], 1)
-                    source['RA'] = ra
-                    source['DEC'] = dec                
-                # check that we have a detection near our object
-                object_position = verify_object_position(sources, RA_obj, DEC_obj)
-                if object_position is not None:
-                    # if yes, then surely we can't be too wrong!
-                    logger.info('plate solved and found object at catalogue position.')
+    # 1: Extract stars from the image
+    sources, skysubimage = extract_stars(fits_file_path)
+    sources = [] if sources is None else sources
+    
+    
+    # 2: depends on the number of detections
+    num_sources = len(sources)
+    
+    if num_sources > 6:
+        # Try plate solving
+        logger.info('try plate solving')
+        try:
+            wcs_header = plate_solve_with_API(fits_file_path, sources,
+                                              ra_approx=RA_obj, 
+                                              dec_approx=DEC_obj)
+            wcs = WCS(wcs_header)
+            # we might need this as well
+            image_header = fits.getheader(fits_file_path)
+            # Convert pixel coordinates to RA and DEC and add them to the sources table
+            sources['RA'] = None
+            sources['DEC'] = None
+            for source in sources:
+                ra, dec = wcs.all_pix2world(source['xcentroid'], source['ycentroid'], 1)
+                source['RA'] = ra
+                source['DEC'] = dec                
+            # check that we have a detection near our object
+            object_position = verify_object_position(sources, RA_obj, DEC_obj)
+            if object_position is not None:
+                # if yes, then surely we can't be too wrong!
+                logger.info('plate solved and found object at catalogue position.')
+                return object_position
+            else:
+                # then ...our source extractor might have missed it, or it falls outside of the image.
+                # check that it's inside the image:$
+                logger.info('plate solved but no source corresponding to our object.')
+                px_obj, py_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
+                nx, ny = image_header.get('NAXIS1'), image_header.get('NAXIS2')
+                is_within_bounds = (0 <= px_obj < nx) and (0 <= py_obj < ny)
+                if not is_within_bounds:
+                    logger.info('  object not within bounds of image.')
+                    raise NotWithinImageBoundError
+                logger.info('  object should be in the range of the image.')
+                # ok, if it is in the footprint...
+                # we check the aperture photometry at that location!
+                thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj, diagnostic_plot=False)
+                if thereisflux:
+                    logger.info('  the source extractor probably missed it, there is flux there.')
+                    # yay, we plate solved, and there is flux at the
+                    # coordinates where our object should be.
+                    # we're probably good.
+                    object_position = wcs.world_to_pixel_values(RA_obj, DEC_obj)
                     return object_position
                 else:
-                    # then ...our source extractor might have missed it, or it falls outside of the image.
-                    # check that it's inside the image:$
-                    logger.info('plate solved but no source corresponding to our object.')
-                    px_obj, py_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
-                    nx, ny = image_header.get('NAXIS1'), image_header.get('NAXIS2')
-                    is_within_bounds = (0 <= px_obj < nx) and (0 <= py_obj < ny)
-                    if not is_within_bounds:
-                        logger.info('  object not within bounds of image.')
-                        raise NotWithinImageBoundError
-                    logger.info('  object should be in the range of the image.')
-                    # ok, if it is in the footprint...
-                    # we check the aperture photometry at that location!
-                    thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj, diagnostic_plot=False)
-                    if thereisflux:
-                        logger.info('  the source extractor probably missed it, there is flux there.')
-                        # yay, we plate solved, and there is flux at the
-                        # coordinates where our object should be.
-                        # we're probably good.
-                        object_position = wcs.world_to_pixel_values(RA_obj, DEC_obj)
-                        return object_position
-                    else:
-                        logger.info(' no flux where the object should be. giving up.')
-                        raise PlateSolvedButNoFluxAtObject
-            except CouldNotSolveError:
-                logger.info('could not plate solve, trying to see if there is an obvioulsy brighter star.')
-                # Well, here we can still do the old school select the obviously brighter star.
-                return find_star_that_clearly_pops_out(sources)
-                # this function wlil return the position of the obviously brighter star,
-                # or raise another exception if no such star.
-
-        elif num_sources > 1:
-            logger.info(f'found {num_sources}')
-            logger.info('no plate solving, checking sources')
-            # well not great, only 2-6 sources ...
-            # hard to plate solve, but we can probably assume the pointing
-            # was good enough such that our target is in the field.
-            # There is also a strong probability that our target
-            # will be the brightest in the field.
-            # So, check if one source is significantly brighter
+                    logger.info(' no flux where the object should be. giving up.')
+                    raise PlateSolvedButNoFluxAtObject
+        except CouldNotSolveError:
+            logger.info('could not plate solve, trying to see if there is an obvioulsy brighter star.')
+            # Well, here we can still do the old school select the obviously brighter star.
             return find_star_that_clearly_pops_out(sources)
+            # this function wlil return the position of the obviously brighter star,
+            # or raise another exception if no such star.
 
-        elif num_sources == 1:
-            logger.info('found a single star! checking that it is not a fluke with a different peak detection.')
-            # that's probably our target if we're not too unlucky with the pointing.
-            # let's confirm that it isn't a fluke by looking for the 
-            # source with another technique.
-            if confirm_with_peak_detection(fits_file_path, sources):
-                logger.info('single star found with other technique as well, using this as target.')
-                uniquesource = sources[0]
-                return (uniquesource['xcentroid'], uniquesource['ycentroid'])
-            else:
-                logger.info('other technique found different peak, suspicious, giving up.')
-                raise SuspiciousUniqueDetectionError
+    elif num_sources > 1:
+        logger.info(f'found {num_sources}')
+        logger.info('no plate solving, checking sources')
+        # well not great, only 2-6 sources ...
+        # hard to plate solve, but we can probably assume the pointing
+        # was good enough such that our target is in the field.
+        # There is also a strong probability that our target
+        # will be the brightest in the field.
+        # So, check if one source is significantly brighter
+        return find_star_that_clearly_pops_out(sources)
 
+    elif num_sources == 1:
+        logger.info('found a single star! checking that it is not a fluke with a different peak detection.')
+        # that's probably our target if we're not too unlucky with the pointing.
+        # let's confirm that it isn't a fluke by looking for the 
+        # source with another technique.
+        if confirm_with_peak_detection(fits_file_path, sources):
+            logger.info('single star found with other technique as well, using this as target.')
+            uniquesource = sources[0]
+            return (uniquesource['xcentroid'], uniquesource['ycentroid'])
         else:
-            logger.info('no star found in this field. giving up.')
-            raise EmptyFieldError
+            logger.info('other technique found different peak, suspicious, giving up.')
+            raise SuspiciousUniqueDetectionError
 
-    except Exception as e:
-        # place holder for future issues ...
-        raise e
+    else:
+        logger.info('no star found in this field. giving up.')
+        raise EmptyFieldError
+
 
 
 

@@ -101,7 +101,6 @@ def get_date_obs(file_path):
 
 
 
-# Define your new function here
 def process_file_changes(source_file, destination_folder, last_modified):
     current_modified = source_file.stat().st_mtime
     if last_modified is None or current_modified > last_modified:
