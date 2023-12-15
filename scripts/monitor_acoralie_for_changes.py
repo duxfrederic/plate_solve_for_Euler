@@ -26,7 +26,8 @@ from astropy.visualization import ZScaleInterval
 from astropy.wcs import WCS
 
 
-from euler_plate_solver.telescope_reader import get_skycoord_from_ETCS
+from euler_plate_solver.telescope_reader import (get_telescope_position_skycoord_from_ETCS,
+                                                 get_current_catalogue_skycoord_from_TCS)
 from euler_plate_solver.star_finder import extract_stars
 from euler_plate_solver.process_acquisition_image import process_acquisition_image
 from euler_plate_solver.exceptions import PlateSolvedButNoFluxAtObject
@@ -36,7 +37,7 @@ WORKDIR = "/home/remote/Desktop/helper_astrometry_pointing"
 
 
 
-def diagnostic_plot(fits_file_path, sources, object_position):
+def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord):
     """
     Makes a diagnostic plot of our target localization.
 
@@ -64,6 +65,9 @@ def diagnostic_plot(fits_file_path, sources, object_position):
         ax.coords[1].set_axislabel('Declination')
         # ax.coords[0].set_ticks(number=20)
         # ax.coords[1].set_ticks(number=20)
+        ax.plot([catalogue_skycoord.ra.deg], [catalogue_skycoord.dec.deg], 
+                'o', mfc='None', label='Catalogue coordinates', ms=15,
+                color='green', transform=ax.get_transform('world'))
         
     except:
         pass
@@ -113,7 +117,13 @@ def main():
                 # 
                 time.sleep(1) 
                 # get the coords where telescope is pointing
-                coord = get_skycoord_from_ETCS()
+                # not that useful anymore now that we have the catalogue 
+                # coordinates. 
+                # will write them down so we can have diagnostic data
+                # for the pointing model.
+                coord = get_telescope_position_skycoord_from_ETCS()
+                # get the coords of the current target
+                target = get_current_catalogue_skycoord_from_TCS()
                 
                 
                 date_obs = get_date_obs(source_file)
@@ -122,23 +132,14 @@ def main():
                     destination_file.write_bytes(source_file.read_bytes())
                 
                 # ok, we wrote out file ... we can now process it.
-
-                
-                # WARNING THIS IS NOT HOW THE FUNCTION BELOW IS TO BE CALLED ULTIMATELY
-                # this function expects the true coordinates of the object, so it can
+                # this process function expects the true coordinates of the object, so it can
                 # provide its pixel position (to be used to calculate the offset)
-                # here we provide the pointing coordinates
-                # thus, the second exception will always be raised unless the telescope
-                # pointed exactly on a star.
                 object_position = None
                 try:
-                    object_position = process_acquisition_image(destination_file, coord.ra.deg, coord.dec.deg)
-                except PlateSolvedButNoFluxAtObject:
-                    # this is normal due to the warning above.
-                    # we just keep going.
-                    pass
+                    object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
                 except Exception as e:
                     print(e)
+                    raise
                     # something else,just a print for debug for now, 
                     # I don't know where the best place would be for logging.
                 # true_position = None  # You need to determine this based on WCS solving
@@ -147,7 +148,8 @@ def main():
                 # in extract_stars below and another in process_acquisition_image)
                 # it's just for test
                 sources, imageskysub = extract_stars(destination_file)
-                diagnostic_plot(destination_file, sources, object_position)
+                diagnostic_plot(destination_file, sources, object_position,
+                                target)
 
         time.sleep(5)
 
