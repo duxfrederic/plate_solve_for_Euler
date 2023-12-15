@@ -56,11 +56,10 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
     with fits.open(fits_file_path) as hdulist:
         image_data = hdulist[0].data
 
-    # Set up the plot
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     zscale = ZScaleInterval()
     vmin, vmax = zscale.get_limits(image_data)
-
+    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
     # If plate solving worked, show the coordinates
     try:
         wcs = WCS(hdulist[0].header)
@@ -74,11 +73,9 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
                 'o', mfc='None', label='Catalogue coordinates', ms=15,
                 color='green', transform=ax.get_transform('world'))
         
-    except:
+    except Exception as e:
+        logger.info(f'script.monitor_acoralie_for_changes.diagnostic_plot: error when trying to plot the WCS: {e}')
         raise
-    
-    # Plot the image
-    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
 
     # Plot the extracted sources
     ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', 
@@ -88,7 +85,6 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
     if object_position is not None:
         ax.plot(object_position[0], object_position[1], 'x', color='blue', 
                 markersize=10, label='Estimated Position')
-
 
     ax.legend()
     plt.tight_layout()
@@ -157,8 +153,6 @@ def main():
                     logger.error(e)
                     raise
                     # something else,just a print for debug for now, 
-                    # I don't know where the best place would be for logging.
-                # true_position = None  # You need to determine this based on WCS solving
                 
                 # here we do redundant things (e.g. extracting sources 2 times, once
                 # in extract_stars below and another in process_acquisition_image)
