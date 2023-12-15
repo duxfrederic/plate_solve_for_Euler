@@ -212,8 +212,10 @@ def find_star_that_clearly_pops_out(sources, brightness_factor=5):
 
     brightest_source = find_brightest_source(sources)
     if is_significantly_brighter(brightest_source, sources, brightness_factor):
+        logger.info('found a very bright star! using this as our target.')
         return (brightest_source['xcentroid'], brightest_source['ycentroid'])
     else:
+        logger.info('did not find an obvously brighet star, cannot find object, giving up.')
         # if no, then it's really ambigous, can't say anything with
         # any kind of confidence
         raise TooFewStarsForPlateSolving
@@ -244,10 +246,10 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
         
         # 2: depends on the number of detections
         num_sources = len(sources)
-
+        
         if num_sources > 6:
             # Try plate solving
-            print('try plate solving')
+            logger.info('try plate solving')
             try:
                 wcs_header = plate_solve_with_API(fits_file_path, sources,
                                                   ra_approx=RA_obj, 
@@ -266,36 +268,42 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                 object_position = verify_object_position(sources, RA_obj, DEC_obj)
                 if object_position is not None:
                     # if yes, then surely we can't be too wrong!
+                    logger.info('plate solved and found object at catalogue position.')
                     return object_position
                 else:
                     # then ...our source extractor might have missed it, or it falls outside of the image.
-                    # check that it's inside the image:
+                    # check that it's inside the image:$
+                    logger.info('plate solved but no source corresponding to our object.')
                     px_obj, py_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
                     nx, ny = image_header.get('NAXIS1'), image_header.get('NAXIS2')
                     is_within_bounds = (0 <= px_obj < nx) and (0 <= py_obj < ny)
                     if not is_within_bounds:
+                        logger.info('  object not within bounds of image.')
                         raise NotWithinImageBoundError
-
+                    logger.info('  object should be in the range of the image.')
                     # ok, if it is in the footprint...
                     # we check the aperture photometry at that location!
                     thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj)
                     if thereisflux:
+                        logger.info('  the source extractor probably missed it, there is flux there.')
                         # yay, we plate solved, and there is flux at the
                         # coordinates where our object should be.
                         # we're probably good.
                         object_position = wcs.world_to_pixel_values(RA_obj, DEC_obj)
                         return object_position
                     else:
+                        logger.info(' no flux where the object should be. giving up.')
                         raise PlateSolvedButNoFluxAtObject
             except CouldNotSolveError:
+                logger.info('could not plate solve, trying to see if there is an obvioulsy brighter star.')
                 # Well, here we can still do the old school select the obviously brighter star.
                 return find_star_that_clearly_pops_out(sources)
                 # this function wlil return the position of the obviously brighter star,
                 # or raise another exception if no such star.
 
         elif num_sources > 1:
-            print('found ', num_sources)
-            print('no plate solving, checking sources')
+            logger.info('found ', num_sources)
+            logger.info('no plate solving, checking sources')
             # well not great, only 2-6 sources ...
             # hard to plate solve, but we can probably assume the pointing
             # was good enough such that our target is in the field.
@@ -305,16 +313,20 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
             return find_star_that_clearly_pops_out(sources)
 
         elif num_sources == 1:
+            logger.info('found a single star! checking that it is not a fluke with a different peak detection.')
             # that's probably our target if we're not too unlucky with the pointing.
             # let's confirm that it isn't a fluke by looking for the 
             # source with another technique.
             if confirm_with_peak_detection(fits_file_path, sources):
+                logger.info('single star found with other technique as well, using this as target.')
                 uniquesource = sources[0]
                 return (uniquesource['xcentroid'], uniquesource['ycentroid'])
             else:
+                logger.info('other technique found different peak, suspicious, giving up.')
                 raise SuspiciousUniqueDetectionError
 
         else:
+            logger.info('no star found in this field. giving up.')
             raise EmptyFieldError
 
     except Exception as e:
