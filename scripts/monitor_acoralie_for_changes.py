@@ -59,23 +59,22 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     zscale = ZScaleInterval()
     vmin, vmax = zscale.get_limits(image_data)
-    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+    
     # If plate solving worked, show the coordinates
-    try:
+    if 'PL-SLVED' in hdulist[0].header:
+        # make a new ax with the WCS projection
         wcs = WCS(hdulist[0].header)
         ax = plt.subplot(projection=wcs)
         ax.coords.grid(True, color='white', ls='solid')
         ax.coords[0].set_axislabel('Right Ascension')
         ax.coords[1].set_axislabel('Declination')
-        # ax.coords[0].set_ticks(number=20)
-        # ax.coords[1].set_ticks(number=20)
         ax.plot([catalogue_skycoord.ra.deg], [catalogue_skycoord.dec.deg], 
                 'o', mfc='None', label='Catalogue coordinates', ms=15,
                 color='green', transform=ax.get_transform('world'))
-        
-    except Exception as e:
-        logger.info(f'script.monitor_acoralie_for_changes.diagnostic_plot: error when trying to plot the WCS: {e}')
-        raise
+    else:
+        logger.info('script.monitor_acoralie_for_changes.diagnostic_plot: no wcs available for plot.')
+    # image
+    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
 
     # Plot the extracted sources
     ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', 

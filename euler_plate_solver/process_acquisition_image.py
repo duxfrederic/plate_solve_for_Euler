@@ -113,6 +113,7 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
         plt.tight_layout()
         fp = Path(fits_file_path)
         plot_path = fp.with_stem(f'{fp.stem}_aperture_diagnostic').with_suffix('.jpg')
+        logger.info(f'check_flux_at_position on {fits_file_path}, saving diagnostic plot at {plot_path}')
         plt.savefig(plot_path, dpi=300)
         plt.close()
 
