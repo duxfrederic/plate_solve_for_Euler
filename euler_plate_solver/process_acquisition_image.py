@@ -402,33 +402,33 @@ def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
 
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
-    def get_coords(fitspath):
-        from astropy.coordinates import SkyCoord
-        from astropy import units as u
-        from pathlib import Path
-        try:
-            name = Path(fitspath).stem
-            ra, dec = name.split('_')[:2]
-            c = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
-            return c.ra.degree, c.dec.degree
-        except:
-            return None
+#     def get_coords(fitspath):
+#         from astropy.coordinates import SkyCoord
+#         from astropy import units as u
+#         from pathlib import Path
+#         try:
+#             name = Path(fitspath).stem
+#             ra, dec = name.split('_')[:2]
+#             c = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
+#             return c.ra.degree, c.dec.degree
+#         except:
+#             return None
         
-    dd = Path('../tests/example_data')
-    for fits_file_path in dd.glob('*.fits'):
-        if not '6h45' in fits_file_path.name:
-            continue
+#     dd = Path('../tests/example_data')
+#     for fits_file_path in dd.glob('*.fits'):
+#         if not '6h45' in fits_file_path.name:
+#             continue
 
-        # Assume these functions and variables are defined as per your previous logic
-        sources, imageskysub = extract_stars(fits_file_path)
-        RA_obj, DEC_obj = get_coords(fits_file_path)
-        object_position = None
-        try:
-            object_position = process_acquisition_image(fits_file_path, RA_obj, DEC_obj)
-        except Exception as e:
-            print(e)
-        # true_position = None  # You need to determine this based on WCS solving
+#         # Assume these functions and variables are defined as per your previous logic
+#         sources, imageskysub = extract_stars(fits_file_path)
+#         RA_obj, DEC_obj = get_coords(fits_file_path)
+#         object_position = None
+#         try:
+#             object_position = process_acquisition_image(fits_file_path, RA_obj, DEC_obj)
+#         except Exception as e:
+#             print(e)
+#         # true_position = None  # You need to determine this based on WCS solving
         
-        diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj)
+#         diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj)

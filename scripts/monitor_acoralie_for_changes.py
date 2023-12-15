@@ -63,6 +63,7 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
     # If plate solving worked, show the coordinates
     if 'PL-SLVED' in hdulist[0].header:
         # make a new ax with the WCS projection
+        logger.info('monitor_acoralie_for_changes.diagnostic_plot: PL-SLVED in header -> using WCS')
         wcs = WCS(hdulist[0].header)
         ax = plt.subplot(projection=wcs)
         ax.coords.grid(True, color='white', ls='solid')
