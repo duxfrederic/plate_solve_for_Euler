@@ -28,6 +28,8 @@ from astropy.wcs import WCS
 import logging
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(filename='my_log.log', level=logging.INFO)
+
 
 
 from euler_plate_solver.telescope_reader import (get_telescope_position_skycoord_from_ETCS,
