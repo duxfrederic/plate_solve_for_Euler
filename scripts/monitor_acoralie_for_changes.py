@@ -36,7 +36,6 @@ from euler_plate_solver.telescope_reader import (get_telescope_position_skycoord
                                                  get_current_catalogue_skycoord_from_TCS)
 from euler_plate_solver.star_finder import extract_stars
 from euler_plate_solver.process_acquisition_image import process_acquisition_image
-from euler_plate_solver.exceptions import PlateSolvedButNoFluxAtObject
 
 
 WORKDIR = "/home/remote/Desktop/helper_astrometry_pointing"
@@ -144,7 +143,8 @@ def main():
                 date_obs = get_date_obs(source_file)
                 destination_file = destination_folder / f"{date_obs}.fits"
                 if not destination_file.exists():
-                    destination_file.write_bytes(source_file.read_bytes())
+                    with fits.open(source_file, mode='readonly') as hdul_source:
+                        hdul_source.writeto(destination_file)
                 
                 # ok, we wrote out file ... we can now process it.
                 # this process function expects the true coordinates of the object, so it can
