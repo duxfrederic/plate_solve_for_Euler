@@ -43,7 +43,7 @@ def verify_object_position(sources_with_wcs, RA_obj, DEC_obj, tolerance=5):
     Returns:
     - Tuple (x, y): Pixel coordinates of the object if found, else None.
     """
-    logger.info('verify_object_position at', RA_obj, DEC_obj, 'on', len(sources), 'sources.')
+    logger.info(f'verify_object_position at {RA_obj}, {DEC_obj} on {len(sources)} sources.')
 
     # Create a SkyCoord object for the object of interest
     obj_coord = SkyCoord(ra=RA_obj*u.degree, dec=DEC_obj*u.degree, frame='icrs')
@@ -77,7 +77,7 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
     Returns:
     - bool: Is there significant flux at the position or not?
     """
-    logger.info('check_flux_at_position on', fits_file_path, 'at', RA_obj, DEC_obj)
+    logger.info(f'check_flux_at_position on {fits_file_path} at {RA_obj}, {DEC_obj}')
     with fits.open(fits_file_path) as hdulist:
         image_data = hdulist[0].data
         wcs = WCS(hdulist[0].header)
@@ -130,7 +130,7 @@ def find_brightest_source(sources):
     Returns:
     - Row: The row of the brightest source in the table.
     """
-    logger.info('find_brightest_source on', len(sources), 'sources.')
+    logger.info(f'find_brightest_source on {len(sources)} sources.')
 
     brightest_index = np.argmax(sources['flux'])
     return sources[brightest_index]
@@ -149,7 +149,7 @@ def is_significantly_brighter(brightest_source, sources, brightness_factor=5):
     Returns:
     - bool: True if the brightest source is significantly brighter, False otherwise.
     """
-    logger.info('is_significantly_brighter on', len(sources), 'sources with', brightest_source)
+    logger.info(f'is_significantly_brighter on {len(sources)} sources with {brightest_source}')
 
     brightest_flux = brightest_source['flux']
 
@@ -177,7 +177,7 @@ def confirm_with_peak_detection(fits_file_path, source, window_size=5, peak_tole
     Returns:
     - Tuple (x, y): Pixel coordinates of the peak if confirmed, else None.
     """
-    logger.info('confirm_with_peak_detection on', fits_file_path)
+    logger.info(f'confirm_with_peak_detection on {fits_file_path}')
 
     # Load the FITS image data
     with fits.open(fits_file_path) as hdulist:
@@ -208,7 +208,7 @@ def find_star_that_clearly_pops_out(sources, brightness_factor=5):
     Raises:
         raises TooFewStarsForPlateSolving indicates that we really can't be sure
     """
-    logger.info('find_star_that_clearly_pops_out on', len(sources), 'sources.')
+    logger.info(f'find_star_that_clearly_pops_out on {len(sources)} sources.')
 
     brightest_source = find_brightest_source(sources)
     if is_significantly_brighter(brightest_source, sources, brightness_factor):
@@ -236,7 +236,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
     Raises:
     - different exceptions if the object cannot be located or other conditions are not met.
     """
-    logger.info('process_acquisition_image on', fits_file_path, 'at', RA_obj, DEC_obj)
+    logger.info(f'process_acquisition_image on {fits_file_path} at  {RA_obj}, {DEC_obj}')
 
     try:
         # 1: Extract stars from the image
@@ -302,7 +302,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                 # or raise another exception if no such star.
 
         elif num_sources > 1:
-            logger.info('found ', num_sources)
+            logger.info(f'found {num_sources}')
             logger.info('no plate solving, checking sources')
             # well not great, only 2-6 sources ...
             # hard to plate solve, but we can probably assume the pointing
