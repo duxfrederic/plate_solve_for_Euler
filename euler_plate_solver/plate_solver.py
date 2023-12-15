@@ -14,6 +14,9 @@ import requests
 import json
 import os
 from astroquery.astrometry_net import AstrometryNet
+import logging
+logger = logging.getLogger(__name__)
+
 
 from euler_plate_solver.star_finder import extract_stars, plot_stars
 from euler_plate_solver.exceptions import CouldNotSolveError
@@ -39,9 +42,11 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     WCS header if successful, None otherwise.
 
     """
+    logger.info(f"plate_solve_with_API on {fits_file_path}")
     # check, maybe we already solved it
     header = fits.getheader(fits_file_path)
     if 'PL-SLVED' in header and not REDO:
+        logger.info(f"{fits_file_path} was already plate solved, no redoing.")
         # we already treated it.
         # the header contains the WCS info.
         return header
@@ -78,6 +83,7 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
                                          **morekwargs)
     except Exception as e:
         # anything ...
+        logger.info(f"plate_solve_with_API: something went wrong with API when trying to solve {fits_file_path}")
         raise CouldNotSolveError(f'Exception when trying to plate solve the image: {e}')
 
     # it can also have actually failed.
@@ -86,10 +92,13 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     # or if we don't have enough stars
     # or ...many other reasons.
     if len(wcs) == 0:
+        logger.info(f"plate_solve_with_API: could not plate solve {fits_file_path}")
+
         raise CouldNotSolveError('Astrometry.net failed! WCS empty. Try with different stars or a different image?')
 
     # else, we're probably fine. Like, 99.9% confidence from my
     # experience with astrometry.net's plate solver.
+    logger.info(f"plate_solve_with_API: {fits_file_path} solved, writing the WCS")
     with fits.open(fits_file_path, mode="update") as hdul:
         # little flag to indicate that we plate solved this file:
         wcs['PL-SLVED'] = 1
