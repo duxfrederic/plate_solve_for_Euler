@@ -76,7 +76,7 @@ def diagnostic_plot(fits_file_path, sources, object_position, catalogue_skycoord
                 color='green', transform=ax.get_transform('world'))
         
     except:
-        pass
+        raise
     
     # Plot the image
     ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
@@ -153,7 +153,7 @@ def main():
                     object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
                 except Exception as e:
                     logger.error(e)
-                    continue
+                    raise
                     # something else,just a print for debug for now, 
                     # I don't know where the best place would be for logging.
                 # true_position = None  # You need to determine this based on WCS solving

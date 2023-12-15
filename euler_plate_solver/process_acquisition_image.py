@@ -43,7 +43,7 @@ def verify_object_position(sources_with_wcs, RA_obj, DEC_obj, tolerance=5):
     Returns:
     - Tuple (x, y): Pixel coordinates of the object if found, else None.
     """
-    logger.info(f'verify_object_position at {RA_obj}, {DEC_obj} on {len(sources)} sources.')
+    logger.info(f'verify_object_position at {RA_obj}, {DEC_obj} on {len(sources_with_wcs)} sources.')
 
     # Create a SkyCoord object for the object of interest
     obj_coord = SkyCoord(ra=RA_obj*u.degree, dec=DEC_obj*u.degree, frame='icrs')
