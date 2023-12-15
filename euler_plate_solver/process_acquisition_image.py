@@ -246,6 +246,7 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
     
     # 2: depends on the number of detections
     num_sources = len(sources)
+    logger.info(f'process_acquisition_image on {fits_file_path} at  {RA_obj}, {DEC_obj}: extracted {num_sources} sources.')
     
     if num_sources > 6:
         # Try plate solving
