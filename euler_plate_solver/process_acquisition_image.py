@@ -221,7 +221,9 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
 
     Returns:
     - Tuple (x, y): Pixel coordinates of the object in the image.
-    - Raises different exceptions if the object cannot be located or other conditions are not met.
+    
+    Raises:
+    - different exceptions if the object cannot be located or other conditions are not met.
     """
 
     try:
@@ -277,9 +279,9 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                         raise PlateSolvedButNoFluxAtObject
             except CouldNotSolveError:
                 # Well, here we can still do the old school select the obviously brighter star.
-                find_star_that_clearly_pops_out(sources)
-                # we'll raise a TooFewStarsForPlateSolving if it's not the case.
-                raise
+                return find_star_that_clearly_pops_out(sources)
+                # this function wlil return the position of the obviously brighter star,
+                # or raise another exception if no such star.
 
         elif num_sources > 1:
             print('found ', num_sources)
