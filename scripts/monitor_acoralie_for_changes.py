@@ -135,20 +135,23 @@ def process_file_changes(source_file, destination_folder, last_modified):
         # ok, we wrote out file ... we can now process it.
         # this process function expects the true coordinates of the object, so it can
         # provide its pixel position (to be used to calculate the offset)
-        logger.info(f'running process_ac image on {destination_file} with {target.ra.deg}, {target.dec.deg}')
-        object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
-        logger.info(f'process_acquisition_image determined target position at {object_position}')
-        
-        # here we do redundant things (e.g. extracting sources 2 times, once
-        # in extract_stars below and another in process_acquisition_image)
-        # it's just for test
-        sources, imageskysub = extract_stars(destination_file)
-        logger.info(f'about to call diagnostic_plot with args: destination_file: {destination_file}, {len(sources)} sources, object_position: {object_position}, target: {target}')
-        diagnostic_plot(destination_file, 
-                        sources, 
-                        object_position,
-                        target)
-        
+        try:
+            logger.info(f'running process_ac image on {destination_file} with {target.ra.deg}, {target.dec.deg}')
+            object_position = process_acquisition_image(destination_file, target.ra.deg, target.dec.deg)
+            logger.info(f'process_acquisition_image determined target position at {object_position}')
+            
+            # here we do redundant things (e.g. extracting sources 2 times, once
+            # in extract_stars below and another in process_acquisition_image)
+            # it's just for test
+            sources, imageskysub = extract_stars(destination_file)
+            logger.info(f'about to call diagnostic_plot with args: destination_file: {destination_file}, {len(sources)} sources, object_position: {object_position}, target: {target}')
+            diagnostic_plot(destination_file, 
+                            sources, 
+                            object_position,
+                            target)
+        except Exception as e:
+            logger.info(f'Exception raised: {e}')
+
     return last_modified
 
 
