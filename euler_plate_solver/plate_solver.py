@@ -10,20 +10,28 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from astropy.visualization import ZScaleInterval
+from astropy.table import Table
 import requests
 import json
 import os
+from pathlib import Path
+import tempfile
+import subprocess
 from astroquery.astrometry_net import AstrometryNet
 import logging
 logger = logging.getLogger(__name__)
 
-
-from euler_plate_solver.star_finder import extract_stars, plot_stars
 from euler_plate_solver.exceptions import CouldNotSolveError
 
 
 N_BRIGHTEST_TO_USE = 15
 REDO = False
+
+
+# pixel scale of the instrument in arcsec/pixel
+scale_min = 0.24
+scale_max = 0.28
+
 
 def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=None):
     """
@@ -73,11 +81,11 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
         morekwargs['center_dec'] = dec_approx
         morekwargs['radius'] = 1. # 1 degree ...if it's worse than that, tchao.
     try:
-        # TODO FACTOR OUT PIXEL SCALE ESTIMATE
-        # HERE I HARDCODED THE PIXEL SCALE OF CORALIE'S BIGEYE
+        scale_est = 0.5 * (scale_max + scale_min)
+        scale_err = 100 * abs(scale_max - scale_min) / scale_est  # in %
         wcs = ast.solve_from_source_list(x, y, nx, ny,
-                                         scale_est=0.26,
-                                         scale_err=10,
+                                         scale_est=scale_est,
+                                         scale_err=scale_err,
                                          scale_units='arcsecperpix',
                                          publicly_visible='n',
                                          **morekwargs)
@@ -108,6 +116,78 @@ def plate_solve_with_API(fits_file_path, sources, ra_approx=None, dec_approx=Non
     return wcs
 
 
+def plate_solve_locally(fits_file_path, sources, ra_approx=None, dec_approx=None):
+    """
+    Calculate the WCS using a local installation of astrometry.net.
+
+    Parameters:
+    fits_file_path (Path or str): Path to the FITS file.
+    sources (astropy.table.Table): Table of detected sources.
+    ra_approx (float): Approximate RA in degrees.
+    dec_approx (float): Approximate DEC in degrees.
+
+    Returns:
+    WCS header if successful, None otherwise.
+    """
+    fits_file_path = Path(fits_file_path)
+    logger.info(f"plate_solve_locally on {fits_file_path}")
+
+    # check, maybe we already solved it
+    header = fits.getheader(fits_file_path)
+    if 'PL-SLVED' in header:
+        logger.info(f"{fits_file_path} was already plate solved.")
+        return header
+
+    # a work dir for the plate solving arguments
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # xylist.fits from sources
+        xylist_path = Path(tmpdirname) / 'xylist.fits'
+        t = Table([sources['xcentroid'], sources['ycentroid'], sources['flux']],
+                  names=('X', 'Y', 'FLUX'))
+        t.sort('FLUX', reverse=True)
+        t = t[:N_BRIGHTEST_TO_USE]
+        hdu = fits.BinTableHDU(data=t)
+        hdu.writeto(xylist_path, overwrite=True)
+
+        # build solve-field command
+        command = ['/usr/bin/solve-field', str(xylist_path), '--no-plots', '--x-column', 'X', '--y-column', 'Y',
+                   '--sort-column', 'FLUX']  # by default solve-field sort by largest first, so ok to give flux this way
+        # we also need the dimensions of the image:
+        command += ['--width', str(header['NAXIS1']), '--height', str(header['NAXIS2'])]
+        if ra_approx is not None and dec_approx is not None:
+            command += ['--ra', str(ra_approx), '--dec', str(dec_approx), '--radius', '1']
+        # add the scale estimate as well
+        command += ['--scale-low', str(scale_min), '--scale-high', str(scale_max), '--scale-units', 'arcsecperpix']
+
+        # we'll need this command to use the system python interpreter, not the one running this script.
+        # (unless solve-field was installed within this environment ...but likely not the case)
+        new_env = os.environ.copy()
+        new_env["PATH"] = "/usr/bin:" + new_env["PATH"]  # assuming python is in /usr/bin
+
+        # run command
+        try:
+            subprocess.run(command, check=True, cwd=tmpdirname, env=new_env)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error running solve-field: {e}")
+            raise CouldNotSolveError('Error running solve-field.')
+
+        # check for solution and update FITS file
+        solved_path = next(Path(tmpdirname).glob('*.wcs'), None)
+        if solved_path is None:
+            logger.error("Astrometry failed: No solution found.")
+            raise CouldNotSolveError('failed to solve astrometry')
+        else:
+            wcs = WCS(fits.getheader(solved_path)).to_header()
+            # else, we're probably fine. Like, 99.9% confidence from my
+            # experience with astrometry.net's plate solver.
+            logger.info(f"plate_solve_with_API: {fits_file_path} solved, writing the WCS")
+            with fits.open(fits_file_path, mode="update") as hdul:
+                # little flag to indicate that we plate solved this file:
+                wcs['PL-SLVED'] = 'done'
+                # add all this info to the file:
+                hdul[0].header.update(wcs)
+                hdul.flush()
+    return wcs
 
 
 def plot_stars_with_wcs(fits_file_path, sources):
@@ -139,7 +219,6 @@ def plot_stars_with_wcs(fits_file_path, sources):
 
     plt.legend()
     plt.show()
-
 
 
 # if __name__ == '__main__':
