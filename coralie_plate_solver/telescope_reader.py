@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-
 import subprocess
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from pathlib import Path
 
-glscriptpath = Path('/opt/t4/beta/scripts/')
+from coralie_plate_solver.config import Config
+
+config = Config()
 
 
-def get_telescope_position_skycoord_from_ETCS():
-    command_name =  'ETCS_axis_positions'
-    position_script = str(glscriptpath / command_name)
+def get_telescope_position_skycoord_from_etcs():
+    command_name = 'ETCS_axis_positions'
+    position_script = config.get('etcs_telescope_position_script')
     try:
         result = subprocess.run([position_script], capture_output=True, text=True, check=True)
         output = result.stdout
@@ -27,24 +27,24 @@ def get_telescope_position_skycoord_from_ETCS():
 
     except subprocess.CalledProcessError as e:
         print(f"An error occurred in the subprocess when executing {command_name}: {e}")
-        raise # can't let it go through
-    except ValueError as e: # probably from parts.index, alpha and delta not in string
+        raise  # can't let it go through
+    except ValueError as e:  # probably from parts.index, alpha and delta not in string
         print(f"ValueError: {e}, when parsing the output of {command_name}, it wasn't what we expected:", output)
-        raise # again, print above for context, but can't let it through
+        raise  # again, print above for context, but can't let it through
     except Exception as e:
         print(f"Undefined error when running {command_name}: {e}")
-        raise # same
+        raise  # same
 
 
-def get_current_catalogue_skycoord_from_TCS():
-    command_name =  'TCS_GetNode'
-    argra = "GVL.lr_alphaCat_deg"
-    argdec = "GVL.lr_deltaCat_deg"
-    position_script = str(glscriptpath / command_name)
+def get_current_catalogue_skycoord_from_tcs():
+    command_name = 'TCS_GetNode'
+    position_script = config.get('tcs_script_node')
+    arg_ra = config.get('tcs_ra_argument')
+    arg_dec= config.get('tcs_dec_argument')
     try:
-        ra = subprocess.run([position_script, argra], capture_output=True, text=True, check=True)
+        ra = subprocess.run([position_script, arg_ra], capture_output=True, text=True, check=True)
         ra = float(ra.stdout)
-        dec = subprocess.run([position_script, argdec], capture_output=True, text=True, check=True)
+        dec = subprocess.run([position_script, arg_dec], capture_output=True, text=True, check=True)
         dec = float(dec.stdout)
 
         sky_coord = SkyCoord(ra=ra * u.degree, dec=dec * u.degree)
@@ -53,8 +53,7 @@ def get_current_catalogue_skycoord_from_TCS():
 
     except subprocess.CalledProcessError as e:
         print(f"An error occurred in the subprocess when executing {command_name}: {e}")
-        raise # can't let it go through
+        raise  # can't let it go through
     except Exception as e:
         print(f"Undefined error when running {command_name}: {e}")
-        raise # same
-
+        raise  # same

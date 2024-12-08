@@ -17,67 +17,67 @@ from astropy.stats import sigma_clipped_stats
 import matplotlib.pyplot as plt
 from astropy.visualization import ZScaleInterval
 import logging
+
+from coralie_plate_solver.star_finder import extract_stars
+from coralie_plate_solver.plate_solver import plate_solve_locally
+from coralie_plate_solver.exceptions import (CouldNotSolveError, PlateSolvedButNoFluxAtObject,
+                                             TooFewStarsForPlateSolving, EmptyFieldError,
+                                             SuspiciousUniqueDetectionError,
+                                             NotWithinImageBoundError)
+
+
 logger = logging.getLogger(__name__)
 
 
-
-from euler_plate_solver.star_finder import extract_stars
-from euler_plate_solver.plate_solver import plate_solve_with_API
-from euler_plate_solver.exceptions import (CouldNotSolveError, PlateSolvedButNoFluxAtObject,
-                                           TooFewStarsForPlateSolving, EmptyFieldError,
-                                           SuspiciousUniqueDetectionError,
-                                           NotWithinImageBoundError)
-
-
-
-def verify_object_position(sources_with_wcs, RA_obj, DEC_obj, tolerance=5):
+def verify_object_position(sources_with_wcs, ra_obj, dec_obj, tolerance=5):
     """
     Verifies if the object of interest is in the list of sources.
 
     Args:
     - sources_with_wcs (Table): Astropy table of sources with RA and DEC.
-    - RA_obj (float): Right Ascension of the object of interest.
-    - DEC_obj (float): Declination of the object of interest.
+    - ra_obj (float): Right Ascension of the object of interest.
+    - dec_obj (float): Declination of the object of interest.
     - tolerance (int): Tolerance in pixels for matching the position.
 
     Returns:
     - Tuple (x, y): Pixel coordinates of the object if found, else None.
     """
-    logger.info(f'verify_object_position at {RA_obj}, {DEC_obj} on {len(sources_with_wcs)} sources.')
+    logger.info(f'verify_object_position at {ra_obj}, {dec_obj} on {len(sources_with_wcs)} sources.')
 
     # Create a SkyCoord object for the object of interest
-    obj_coord = SkyCoord(ra=RA_obj*u.degree, dec=DEC_obj*u.degree, frame='icrs')
+    obj_coord = SkyCoord(ra=ra_obj * u.degree, dec=dec_obj * u.degree, frame='icrs')
 
     for source in sources_with_wcs:
         source_coord = SkyCoord(ra=source['RA']*u.degree, dec=source['DEC']*u.degree, frame='icrs')
         sep = obj_coord.separation(source_coord).arcsec
 
         if sep < tolerance:
-            return (source['xcentroid'], source['ycentroid'])
+            object_position_pixels = (source['xcentroid'], source['ycentroid'])
+            return object_position_pixels
 
     return None
 
 
-
-def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
+def check_flux_at_position(fits_file_path, ra_obj, dec_obj,
                            aperture_radius=5, annulus_radii=(8, 10), significance=10,
-                           diagnostic_plot=True):
+                           do_diagnostic_plot=True):
     """
     Performs aperture photometry at a specified position with background subtraction
-    and plots a diagnostic showing the aperture and annulus.
+    and optionally plots a diagnostic showing the aperture and annulus.
 
     Args:
     - fits_file_path (str): Path to the FITS file.
-    - RA_obj (float): Right Ascension of the object of interest.
-    - DEC_obj (float): Declination of the object of interest.
+    - ra_obj (float): Right Ascension of the object of interest.
+    - dec_obj (float): Declination of the object of interest.
     - aperture_radius (int): Radius for the aperture in pixels.
     - annulus_radii (tuple): Radii (inner and outer) for the background annulus in pixels.
     - significance (float): Flux significance (units of sigma) for claiming detection.
+    - do_diagnostic_plot (bool): make a diagnostic plot?
 
     Returns:
     - bool: Is there significant flux at the position or not?
     """
-    logger.info(f'check_flux_at_position on {fits_file_path} at {RA_obj}, {DEC_obj}')
+    logger.info(f'check_flux_at_position on {fits_file_path} at {ra_obj}, {dec_obj}')
     with fits.open(fits_file_path) as hdulist:
         image_data = hdulist[0].data
         wcs = WCS(hdulist[0].header)
@@ -86,7 +86,7 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
     image_data = image_data - median  # Subtract the median background
 
     # transform to pixel coordinates
-    x_obj, y_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
+    x_obj, y_obj = wcs.world_to_pixel_values(ra_obj, dec_obj)
 
     # setup aperture photometry
     aperture = CircularAperture((x_obj, y_obj), r=aperture_radius)
@@ -99,12 +99,12 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
     background_mean = phot_table['aperture_sum_1'] / annulus_aperture.area
     background_sum = background_mean * aperture.area
     flux = phot_table['aperture_sum_0'] - background_sum
-    dflux = std * aperture.area**0.5  # error in the flux, since sigma is per pixel.
-    if diagnostic_plot:
-        zscale = ZScaleInterval()
-        vmin, vmax = zscale.get_limits(image_data)
+    d_flux = std * aperture.area**0.5  # error in the flux, since sigma is per pixel.
+    if do_diagnostic_plot:
+        z_scale = ZScaleInterval()
+        v_min, v_max = z_scale.get_limits(image_data)
         plt.figure()
-        plt.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+        plt.imshow(image_data, origin='lower', cmap='gray', vmin=v_min, vmax=v_max)
         aperture.plot(color='blue', lw=1.5, label='Aperture')
         annulus_aperture.plot(color='red', lw=1.5, linestyle='dashed', label='Background Annulus')
         plt.legend()
@@ -118,7 +118,8 @@ def check_flux_at_position(fits_file_path, RA_obj, DEC_obj,
         plt.close()
 
     # Check for significant flux in the aperture
-    return (flux / dflux > significance)
+    snr = (flux / d_flux > significance)
+    return snr
 
 
 def find_brightest_source(sources):
@@ -135,7 +136,6 @@ def find_brightest_source(sources):
 
     brightest_index = np.argmax(sources['flux'])
     return sources[brightest_index]
-
 
 
 def is_significantly_brighter(brightest_source, sources, brightness_factor=5):
@@ -161,8 +161,6 @@ def is_significantly_brighter(brightest_source, sources, brightness_factor=5):
             return False
 
     return True
-
-
 
 
 def confirm_with_peak_detection(fits_file_path, source, window_size=5, peak_tolerance=5):
@@ -214,22 +212,24 @@ def find_star_that_clearly_pops_out(sources, brightness_factor=5):
     brightest_source = find_brightest_source(sources)
     if is_significantly_brighter(brightest_source, sources, brightness_factor):
         logger.info('found a very bright star! using this as our target.')
-        return (brightest_source['xcentroid'], brightest_source['ycentroid'])
+        object_position_pixels = (brightest_source['xcentroid'], brightest_source['ycentroid'])
+        return object_position_pixels
     else:
-        logger.info('did not find an obvously brighet star, cannot find object, giving up.')
-        # if no, then it's really ambigous, can't say anything with
+        logger.info('did not find an obviously brighter star, cannot find object, giving up.')
+        # if no, then it's really ambiguous, can't say anything with
         # any kind of confidence
         raise TooFewStarsForPlateSolving
 
-def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
+
+def process_acquisition_image(fits_file_path, ra_obj, dec_obj):
     """
     Process the acquisition image to determine the position of the 
     object of interest in the field.
 
     Args:
     - fits_file_path (str): Path to the FITS file.
-    - RA_obj (float): Right Ascension of the object of interest.
-    - DEC_obj (float): Declination of the object of interest.
+    - ra_obj (float): Right Ascension of the object of interest.
+    - dec_obj (float): Declination of the object of interest.
 
     Returns:
     - Tuple (x, y): Pixel coordinates of the object in the image.
@@ -237,45 +237,46 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
     Raises:
     - different exceptions if the object cannot be located or other conditions are not met.
     """
-    logger.info(f'process_acquisition_image on {fits_file_path} at  {RA_obj}, {DEC_obj}')
+    logger.info(f'process_acquisition_image on {fits_file_path} at  {ra_obj}, {dec_obj}')
 
     # 1: Extract stars from the image
-    sources, skysubimage = extract_stars(fits_file_path)
+    sources, skysub_image = extract_stars(fits_file_path)
     sources = [] if sources is None else sources
-    
-    
+
     # 2: depends on the number of detections
     num_sources = len(sources)
-    logger.info(f'process_acquisition_image on {fits_file_path} at  {RA_obj}, {DEC_obj}: extracted {num_sources} sources.')
+    logger.info(f'process_acquisition_image on {fits_file_path} at  {ra_obj}, {dec_obj}: extracted {num_sources} sources.')
     
     if num_sources > 6:
         # Try plate solving
-        logger.info('try plate solving')
+        logger.info(f'trying plate solving on {fits_file_path}')
         try:
-            wcs_header = plate_solve_with_API(fits_file_path, sources,
-                                              ra_approx=RA_obj, 
-                                              dec_approx=DEC_obj)
+            wcs_header = plate_solve_locally(fits_file_path, sources,
+                                             ra_approx=ra_obj,
+                                             dec_approx=dec_obj,
+                                             scale_min=0.15,
+                                             scale_max=0.3)
             wcs = WCS(wcs_header)
             # we might need this as well
             image_header = fits.getheader(fits_file_path)
             # Convert pixel coordinates to RA and DEC and add them to the sources table
-            sources['RA'] = None
-            sources['DEC'] = None
+            sources['ra'] = None
+            sources['dec'] = None
             for source in sources:
                 ra, dec = wcs.all_pix2world(source['xcentroid'], source['ycentroid'], 1)
-                source['RA'] = ra
-                source['DEC'] = dec                
+                source['ra'] = ra
+                source['dec'] = dec
             # check that we have a detection near our object
-            object_position = verify_object_position(sources, RA_obj, DEC_obj)
-            if object_position is not None:
+            object_position_pixels = verify_object_position(sources, ra_obj, dec_obj)
+            if object_position_pixels is not None:
                 # if yes, then surely we can't be too wrong!
                 logger.info('plate solved and found object at catalogue position.')
-                return object_position
+                return object_position_pixels
             else:
                 # then ...our source extractor might have missed it, or it falls outside of the image.
                 # check that it's inside the image:$
                 logger.info('plate solved but no source corresponding to our object.')
-                px_obj, py_obj = wcs.world_to_pixel_values(RA_obj, DEC_obj)
+                px_obj, py_obj = wcs.world_to_pixel_values(ra_obj, dec_obj)
                 nx, ny = image_header.get('NAXIS1'), image_header.get('NAXIS2')
                 is_within_bounds = (0 <= px_obj < nx) and (0 <= py_obj < ny)
                 if not is_within_bounds:
@@ -284,22 +285,22 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
                 logger.info('  object should be in the range of the image.')
                 # ok, if it is in the footprint...
                 # we check the aperture photometry at that location!
-                thereisflux = check_flux_at_position(fits_file_path, RA_obj, DEC_obj, diagnostic_plot=False)
-                if thereisflux:
+                there_is_flux = check_flux_at_position(fits_file_path, ra_obj, dec_obj, do_diagnostic_plot=False)
+                if there_is_flux:
                     logger.info('  the source extractor probably missed it, there is flux there.')
                     # yay, we plate solved, and there is flux at the
                     # coordinates where our object should be.
                     # we're probably good.
-                    object_position = wcs.world_to_pixel_values(RA_obj, DEC_obj)
-                    return object_position
+                    object_position_pixels = wcs.world_to_pixel_values(ra_obj, dec_obj)
+                    return object_position_pixels
                 else:
                     logger.info(' no flux where the object should be. giving up.')
                     raise PlateSolvedButNoFluxAtObject
         except CouldNotSolveError:
-            logger.info('could not plate solve, trying to see if there is an obvioulsy brighter star.')
+            logger.info('could not plate solve, trying to see if there is an obviously brighter star.')
             # Well, here we can still do the old school select the obviously brighter star.
             return find_star_that_clearly_pops_out(sources)
-            # this function wlil return the position of the obviously brighter star,
+            # this function will return the position of the obviously brighter star,
             # or raise another exception if no such star.
 
     elif num_sources > 1:
@@ -320,8 +321,9 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
         # source with another technique.
         if confirm_with_peak_detection(fits_file_path, sources):
             logger.info('single star found with other technique as well, using this as target.')
-            uniquesource = sources[0]
-            return (uniquesource['xcentroid'], uniquesource['ycentroid'])
+            unique_source = sources[0]
+            object_position_pixels = (unique_source['xcentroid'], unique_source['ycentroid'])
+            return object_position_pixels
         else:
             logger.info('other technique found different peak, suspicious, giving up.')
             raise SuspiciousUniqueDetectionError
@@ -331,101 +333,58 @@ def process_acquisition_image(fits_file_path, RA_obj, DEC_obj):
         raise EmptyFieldError
 
 
-
-
-
-
-def diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj):
+def diagnostic_plot(fits_file_path, sources, object_position_pixels, ra_obj, dec_obj):
     """
     Makes a diagnostic plot of our target localization.
 
     Args:
     - fits_file_path (str): Path to the acquisition FITS file.
     - sources (Table): Astropy Table of extracted sources.
-    - object_position (tuple): Estimated position of the object.
+    - object_position_pixels (tuple): Estimated position of the object.
+    - ra_obj (float): right ascension of the target object
+    - dec_obj (float): declination of the target object.
     """
-
-    # Load the FITS file
-    with fits.open(fits_file_path) as hdulist:
-        image_data = hdulist[0].data
+    # Load the image
+    with fits.open(fits_file_path) as hdu_list:
+        image_data = hdu_list[0].data
 
     # Set up the plot
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-    zscale = ZScaleInterval()
-    vmin, vmax = zscale.get_limits(image_data)
+    z_scale = ZScaleInterval()
+    v_min, v_max = z_scale.get_limits(image_data)
 
     # If plate solving worked, show the coordinates
     try:
-        wcs = WCS(hdulist[0].header)
+        wcs = WCS(hdu_list[0].header)
         ax = plt.subplot(projection=wcs)
         ax.coords.grid(True, color='white', ls='solid')
         ax.coords[0].set_axislabel('Right Ascension')
         ax.coords[1].set_axislabel('Declination')
-        # ax.coords[0].set_ticks(number=20)
-        # ax.coords[1].set_ticks(number=20)
         
-        ax.plot([RA_obj], [DEC_obj], 'o', mfc='None', label='Catalogue coordinates', ms=15,
+        ax.plot([ra_obj], [dec_obj], 'o', mfc='None', label='Catalogue coordinates', ms=15,
                 color='green', transform=ax.get_transform('world'))
-    except:
-        pass
+    except Exception as e:
+        logger.info(f"Not showing position of the target on the plot: {e}")
     
-    coo = SkyCoord(RA_obj, DEC_obj, unit=u.degree)
-    rastr = coo.ra.to_string(unit=u.hourangle, sep=":", precision=2, pad=True)
-    decstr = coo.dec.to_string(sep=":", precision=2, alwayssign=True, pad=True)
+    coo = SkyCoord(ra_obj, dec_obj, unit=u.degree)
+    ra_str = coo.ra.to_string(unit=u.hourangle, sep=":", precision=2, pad=True)
+    dec_str = coo.dec.to_string(sep=":", precision=2, alwayssign=True, pad=True)
 
-    ax.set_title(rastr + ' ' + decstr)
+    ax.set_title(ra_str + ' ' + dec_str)
     # Plot the image
-    ax.imshow(image_data, origin='lower', cmap='gray', vmin=vmin, vmax=vmax)
+    ax.imshow(image_data, origin='lower', cmap='gray', vmin=v_min, vmax=v_max)
 
     # Plot the extracted sources
     ax.scatter(sources['xcentroid'], sources['ycentroid'], s=30, edgecolor='red', 
                facecolor='none', label='Extracted Sources')
 
     # Plot the estimated position of the source
-    if object_position is not None:
-        ax.plot(object_position[0], object_position[1], 'x', color='blue', 
+    if object_position_pixels is not None:
+        ax.plot(object_position_pixels[0], object_position_pixels[1], 'x', color='blue',
                 markersize=10, label='Estimated Position')
-
 
     ax.legend()
     plt.tight_layout()
 
-    # Save the plot
     plot_path = Path(fits_file_path).with_suffix('.jpg')
     plt.savefig(plot_path)
-
-
-
-
-
-
-# if __name__ == "__main__":
-    
-#     def get_coords(fitspath):
-#         from astropy.coordinates import SkyCoord
-#         from astropy import units as u
-#         from pathlib import Path
-#         try:
-#             name = Path(fitspath).stem
-#             ra, dec = name.split('_')[:2]
-#             c = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
-#             return c.ra.degree, c.dec.degree
-#         except:
-#             return None
-        
-#     dd = Path('../tests/example_data')
-#     for fits_file_path in dd.glob('*.fits'):
-#         if not '6h45' in fits_file_path.name:
-#             continue
-
-#         # Assume these functions and variables are defined as per your previous logic
-#         sources, imageskysub = extract_stars(fits_file_path)
-#         RA_obj, DEC_obj = get_coords(fits_file_path)
-#         object_position = None
-#         try:
-#             object_position = process_acquisition_image(fits_file_path, RA_obj, DEC_obj)
-#         except Exception as e:
-#             print(e)
-#         # true_position = None  # You need to determine this based on WCS solving
-        
-#         diagnostic_plot(fits_file_path, sources, object_position, RA_obj, DEC_obj)

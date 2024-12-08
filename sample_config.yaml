@@ -1,0 +1,18 @@
+################################## GLS scripts ##################################
+# used for reading the telescope status, coordinates and set-point coordinates.
+
+# the script yielding position information of the axes
+etcs_telescope_position_script: /opt/t4/beta/scripts/ETCS_axis_positions
+
+# this script can inform us of the target coordinates.
+tcs_script_node: /opt/t4/beta/scripts/TCS_GetNode
+## for the script above, we query the right ascension and declination separately.
+tcs_ra_argument: GVL.lr_alphaCat_deg
+tcs_dec_argument: GVL.lr_deltaCat_deg
+
+################################# Astrometry #################################
+# path to the `solve-field` binary
+solve_field_path: /usr/local/bin/solve-field
+
+# trade off between speed and chance of solving: how many stars to we use?
+n_brightest_stars_to_use: 20

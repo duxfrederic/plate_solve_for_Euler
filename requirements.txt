@@ -1,0 +1,12 @@
+astropy==5.2.1
+astropy==6.1.1
+astroquery==0.4.7
+matplotlib==3.9.3
+numpy==2.2.0
+photutils==1.13.0
+PyYAML==6.0
+PyYAML==6.0.1
+PyYAML==6.0.2
+Requests==2.32.3
+scipy==1.14.1
+sep==1.2.1

@@ -12,7 +12,7 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from euler_plate_solver.star_finder import extract_stars, plot_stars
+from coralie_plate_solver.star_finder import extract_stars, plot_stars
 
 
 
