@@ -237,7 +237,7 @@ def process_acquisition_image(fits_file_path, ra_obj, dec_obj):
     Raises:
     - different exceptions if the object cannot be located or other conditions are not met.
     """
-    logger.info(f'process_acquisition_image on {fits_file_path} at  {ra_obj}, {dec_obj}')
+    logger.info(f'process_acquisition_image in {fits_file_path} at ({ra_obj:.05f}, {dec_obj:.05f})')
 
     # 1: Extract stars from the image
     sources, skysub_image = extract_stars(fits_file_path)
@@ -245,7 +245,8 @@ def process_acquisition_image(fits_file_path, ra_obj, dec_obj):
 
     # 2: depends on the number of detections
     num_sources = len(sources)
-    logger.info(f'process_acquisition_image on {fits_file_path} at  {ra_obj}, {dec_obj}: extracted {num_sources} sources.')
+    logger.info(f'process_acquisition_image on {fits_file_path} at  {ra_obj}, {dec_obj}:'
+                f' extracted {num_sources} sources.')
     
     if num_sources > 6:
         # Try plate solving
